@@ -1,0 +1,37 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "db", "db\db.csproj", "{A6D29099-F6AE-477A-96DD-286064E64016}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "crawler", "crawler\crawler.csproj", "{C9A76152-D560-4A3C-9C2B-319E4342F4CD}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "gmaps-review-notif", "gmaps-review-notif\gmaps-review-notif.csproj", "{058FF0D4-00FA-49C9-A704-B42AD5871DCB}"
+	ProjectSection(ProjectDependencies) = postProject
+		{3E553F7E-3657-4A00-BD1C-250BBBA5F186} = {3E553F7E-3657-4A00-BD1C-250BBBA5F186}
+	EndProjectSection
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "discord-bot", "discord-bot\discord-bot.csproj", "{D6F08FC3-5131-45A8-BA97-4ACDBA1A743C}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{A6D29099-F6AE-477A-96DD-286064E64016}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A6D29099-F6AE-477A-96DD-286064E64016}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A6D29099-F6AE-477A-96DD-286064E64016}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A6D29099-F6AE-477A-96DD-286064E64016}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C9A76152-D560-4A3C-9C2B-319E4342F4CD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C9A76152-D560-4A3C-9C2B-319E4342F4CD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C9A76152-D560-4A3C-9C2B-319E4342F4CD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C9A76152-D560-4A3C-9C2B-319E4342F4CD}.Release|Any CPU.Build.0 = Release|Any CPU
+		{058FF0D4-00FA-49C9-A704-B42AD5871DCB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{058FF0D4-00FA-49C9-A704-B42AD5871DCB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{058FF0D4-00FA-49C9-A704-B42AD5871DCB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{058FF0D4-00FA-49C9-A704-B42AD5871DCB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D6F08FC3-5131-45A8-BA97-4ACDBA1A743C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D6F08FC3-5131-45A8-BA97-4ACDBA1A743C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D6F08FC3-5131-45A8-BA97-4ACDBA1A743C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D6F08FC3-5131-45A8-BA97-4ACDBA1A743C}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
