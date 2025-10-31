@@ -15,8 +15,7 @@ public class UserLatestReview
         await using var browser = new Browser();
         await browser.InitAsync();
 
-        await browser.Page.GotoAsync($"https://www.google.com/maps/contrib/{user.Id}/reviews");
-        await browser.AcceptGoogleTerms();
+        await browser.Page.GotoAsync($"https://www.google.com/maps/contrib/{user.Id}/reviews?hl=en");
 
         await browser.Page.WaitForURLAsync(new Regex(@"\/reviews\/@.*"));
 

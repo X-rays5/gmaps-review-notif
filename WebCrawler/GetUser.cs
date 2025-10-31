@@ -5,7 +5,7 @@ namespace WebCrawler;
 
 public class GetUser
 {
-    private static readonly string GmapsUserUrl = "https://www.google.com/maps/contrib/{0}/reviews";
+    private static readonly string GmapsUserUrl = "https://www.google.com/maps/contrib/{0}/reviews?hl=en";
 
     public static async Task<GmapsUserDto> Execute(string userId)
     {
@@ -15,7 +15,6 @@ public class GetUser
         await browser.InitAsync();
 
         await browser.Page.GotoAsync(url);
-        await browser.AcceptGoogleTerms();
 
         await browser.Page.WaitForURLAsync(new Regex(@"\/reviews\/@.*"));
 

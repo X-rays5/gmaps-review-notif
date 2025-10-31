@@ -22,10 +22,12 @@ public class Browser : IAsyncDisposable
             Locale = "en-US", // still sets navigator.language
             ExtraHTTPHeaders = new Dictionary<string, string>
             {
-                { "Accept-Language", "en-US,en;q=0.9,nl;q=0.8" }
+                { "Accept-Language", "en-US,en;q=1.0" }
             }
         });
         Page = await _context.NewPageAsync();
+
+        await HandleGoogleTerms();
     }
 
     public async ValueTask DisposeAsync()
@@ -35,14 +37,20 @@ public class Browser : IAsyncDisposable
         _playwright?.Dispose();
     }
 
-    public async Task AcceptGoogleTerms()
+    private async Task HandleGoogleTerms()
     {
-        var termsAccepts = Page.GetByRole(AriaRole.Button, new PageGetByRoleOptions{ Name = "Accept all", Exact = false });
-        if (await termsAccepts.IsVisibleAsync())
-            await termsAccepts.ClickAsync();
+        await Page.GotoAsync("https://google.com/maps?hl=en");
 
-        termsAccepts = Page.GetByRole(AriaRole.Button, new PageGetByRoleOptions{ Name = "Alles accepteren", Exact = false });
-        if (await termsAccepts.IsVisibleAsync())
-            await termsAccepts.ClickAsync();
+        await Page.WaitForURLAsync(url => url.Contains("consent.google.com"));
+
+        while (Page.Url.Contains("consent.google.com"))
+        {
+            var termsAccepts = Page.GetByRole(AriaRole.Button, new PageGetByRoleOptions{ Name = "Accept all", Exact = false });
+            await termsAccepts.WaitForAsync();
+            if (await termsAccepts.IsVisibleAsync())
+                await termsAccepts.ClickAsync();
+
+            await Page.WaitForTimeoutAsync(1000);
+        }
     }
 }
