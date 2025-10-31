@@ -1,5 +1,4 @@
 ﻿using System.ComponentModel.DataAnnotations;
-using System.ComponentModel.DataAnnotations.Schema;
 using Microsoft.EntityFrameworkCore;
 
 namespace DataBase.Entity;
@@ -12,6 +11,8 @@ public class FollowingServer
     public required ulong GuildId { get; set; }
     [Required]
     public required ulong ChannelId { get; set; }
+    [Required]
+    public required bool GetOriginal { get; set; }
 
     [Required]
     [MinLength(1)]

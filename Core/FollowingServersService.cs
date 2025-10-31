@@ -1,5 +1,6 @@
 ﻿using DataBase.Accessor;
-using DataBase.Entity;
+using DtoMappers;
+using DtoMappers.Mappers;
 
 namespace Core;
 
@@ -33,23 +34,18 @@ public static class FollowingServersService
         }
     }
 
-    public static async Task StartFollowingUserInServer(ulong guildId, ulong channelId, string gmapsUserId)
+    public static async Task StartFollowingUserInServer(FollowingServerDto followingServerDto)
     {
-        if (guildId < 1 || channelId < 1 || string.IsNullOrWhiteSpace(gmapsUserId))
+        if (followingServerDto.GuildId < 1 || followingServerDto.ChannelId < 1 || string.IsNullOrWhiteSpace(followingServerDto.GmapsUserId))
         {
             return;
         }
 
-        var user = await GmapsUserService.GetGmapsUserById(gmapsUserId);
+        // Ensure the GmapsUser exists
+        await GmapsUserService.GetGmapsUserById(followingServerDto.GmapsUserId);
 
         await using var dbContext = new DbAccessorFollowingServer();
-        var followingServer = new FollowingServer
-        {
-            GuildId = guildId,
-            ChannelId = channelId,
-            GmapsUserId = user.Id
-        };
-        dbContext.AddFollowingServer(followingServer);
+        dbContext.AddFollowingServer(FollowingServerMapper.FollowingServerToEntity(followingServerDto));
         await dbContext.SaveChangesAsync();
     }
 }

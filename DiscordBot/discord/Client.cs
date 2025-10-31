@@ -62,8 +62,6 @@ public class Client
             var json = JsonConvert.SerializeObject(ex.Errors, Formatting.Indented);
             LOG.ErrorFormat("Failed to create/update global application command: {0}", json);
         }
-
-        await _client.SetStatusAsync(UserStatus.Online);
     }
 
     private bool AreCommandsEqual(SocketApplicationCommand? existing, SlashCommandProperties? local)

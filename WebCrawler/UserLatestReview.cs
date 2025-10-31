@@ -37,15 +37,26 @@ public class UserLatestReview
             return null;
         }
 
-        String reviewBody = await reviewBodySpan.First.InnerTextAsync();
+        string reviewBody = await reviewBodySpan.First.InnerTextAsync();
         LOG.Info($"Review body: {reviewBody}");
+
+        string reviewBodyOriginal = reviewBody;
+        var seeOriginalSpan = browser.Page.Locator("span:has-text('See original')").First;
+        if (await seeOriginalSpan.CountAsync() > 0)
+        {
+            await seeOriginalSpan.ClickAsync();
+            // re-fetch the review body
+            reviewBodySpan = browser.Page.Locator("div[tabindex='-1'] > span");
+            reviewBodyOriginal = await reviewBodySpan.First.InnerTextAsync();
+            LOG.Info($"Review body (original): {reviewBody}");
+        }
 
         var starSpan = browser.Page.Locator("span[role='img'][aria-label]:has(span.google-symbols)");
         int starRating = 0;
         if (await starSpan.CountAsync() > 0)
         {
             // now we get the aria-label and take everything before the first space as that is the number of stars
-            String ariaLabel = await starSpan.First.GetAttributeAsync("aria-label");
+            string ariaLabel = await starSpan.First.GetAttributeAsync("aria-label");
             LOG.Info($"Star aria-label: {ariaLabel}");
             var starMatch = Regex.Match(ariaLabel, @"^([0-9]+)");
             if (starMatch.Success)
@@ -58,6 +69,7 @@ public class UserLatestReview
         {
             PlaceId = placeID,
             ReviewBody = reviewBody,
+            ReviewBodyOriginal = reviewBodyOriginal,
             Stars = starRating,
             GmapsUser = user
         };

@@ -8,18 +8,20 @@ public class LatestReview : SlashCommandHandler
 {
     public static SlashCommandProperties RegisterCommand()
     {
-        var galnetFeedSwitch = new SlashCommandBuilder();
-        galnetFeedSwitch.WithName("latest");
-        galnetFeedSwitch.WithDescription("Get the latest review posted by a user");
-        galnetFeedSwitch.WithDefaultMemberPermissions(GuildPermission.SendMessages);
-        galnetFeedSwitch.AddOption("id", ApplicationCommandOptionType.String, "The gmaps user id of the user to get the latest review off", isRequired: true);
+        var latestReviewCommand = new SlashCommandBuilder();
+        latestReviewCommand.WithName("latest");
+        latestReviewCommand.WithDescription("Get the latest review posted by a user");
+        latestReviewCommand.WithDefaultMemberPermissions(GuildPermission.SendMessages);
+        latestReviewCommand.AddOption("id", ApplicationCommandOptionType.String, "The gmaps user id of the user to get the latest review off", isRequired: true);
+        latestReviewCommand.AddOption("original", ApplicationCommandOptionType.Boolean, "Whether to get the review in its original language", isRequired: false);
 
-        return galnetFeedSwitch.Build();
+        return latestReviewCommand.Build();
     }
 
     public static async Task HandleCommand(SocketSlashCommand command)
     {
         string gmapsUserId = null!;
+        bool getOriginal = false;
 
         await command.Data.Options.ToAsyncEnumerable().ForEachAsync(option =>
         {
@@ -27,6 +29,9 @@ public class LatestReview : SlashCommandHandler
             {
                 case "id":
                     gmapsUserId = (string)option.Value;
+                    break;
+                case "original":
+                    getOriginal = (bool)option.Value;
                     break;
             }
         });
@@ -52,7 +57,7 @@ public class LatestReview : SlashCommandHandler
 
         var bodyField = new EmbedFieldBuilder();
         bodyField.Name = "Review";
-        bodyField.Value = postedReview.ReviewBody;
+        bodyField.Value = getOriginal ? postedReview.ReviewBodyOriginal : postedReview.ReviewBody;
 
         var footer = new EmbedFooterBuilder();
         footer.Text = "There may be a delay of up to 3 hours for the latest review to be fetched.";

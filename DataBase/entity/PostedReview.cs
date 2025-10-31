@@ -27,6 +27,11 @@ public class PostedReview
 
     [Required]
     [MinLength(1)]
+    [MaxLength(4200)]
+    public required string ReviewBodyOriginal { get;  set; }
+
+    [Required]
+    [MinLength(1)]
     [MaxLength(100)]
     public required string GmapsUserId { get; set;  }
     [ForeignKey(nameof(GmapsUserId))]

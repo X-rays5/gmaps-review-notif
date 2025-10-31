@@ -7,4 +7,6 @@ namespace DtoMappers.Mappers;
 public partial class FollowingServerMapper
 {
     public static partial FollowingServerDto FollowingServerToDto(FollowingServer followingServer);
+
+    public static partial FollowingServer FollowingServerToEntity(FollowingServerDto followingServerDto);
 }

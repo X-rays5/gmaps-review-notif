@@ -7,5 +7,6 @@ public class PostedReviewDto
     public DateTime TimeCrawled { get; set; } = DateTime.UtcNow;
     public required int Stars { get;  set; }
     public required string ReviewBody { get;  set; }
+    public required string ReviewBodyOriginal { get;  set; }
     public GmapsUserDto GmapsUser { get; set; }
 }
