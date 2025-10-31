@@ -1,5 +1,4 @@
 ﻿using System.ComponentModel.DataAnnotations;
-using System.ComponentModel.DataAnnotations.Schema;
 using Microsoft.EntityFrameworkCore;
 
 namespace DataBase.Entity;
@@ -13,6 +12,11 @@ public class PostedReview
     [MinLength(1)]
     [MaxLength(100)]
     public required string PlaceId { get; set; }
+
+    [Required]
+    [MinLength(1)]
+    [MaxLength(100)]
+    public required string PlaceName { get; set; }
 
     [Required]
     public DateTime TimeCrawled { get; set; } = DateTime.UtcNow;

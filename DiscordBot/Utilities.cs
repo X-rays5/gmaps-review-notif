@@ -6,7 +6,7 @@ namespace DiscordBot;
 
 public static class Utilities
 {
-    public static EmbedBuilder PostedReviewToEmbed(PostedReviewDto reviewDto, bool getOriginal = false)
+    public static EmbedBuilder PostedReviewToEmbed(PostedReviewDto reviewDto, GmapsUserDto gmapsUserDto, bool getOriginal = false)
     {
         var starsField = new EmbedFieldBuilder();
         StringBuilder starsBuilder = new StringBuilder();
@@ -25,7 +25,7 @@ public static class Utilities
         footer.Text = "There may be a delay of up to 3 hours for the latest review to be fetched.";
 
         var builder = new EmbedBuilder();
-        builder.Title = "Latest Review";
+        builder.Title = $"{gmapsUserDto.Name} - New Review for {reviewDto.PlaceName}";
         builder.Fields.Add(starsField);
         builder.Fields.Add(bodyField);
         builder.Footer = footer;

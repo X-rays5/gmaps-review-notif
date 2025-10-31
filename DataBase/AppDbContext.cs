@@ -12,6 +12,8 @@ public class AppDbContext : DbContext
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
         optionsBuilder.EnableSensitiveDataLogging();
+        optionsBuilder.EnableDetailedErrors();
+
         var dbProvider = Environment.GetEnvironmentVariable("DB_PROVIDER") ?? "SQLite";
 
         if (dbProvider == "SQLite")

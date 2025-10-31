@@ -64,7 +64,7 @@ public static class Init
                     continue;
                 }
 
-                await channel.SendMessageAsync(embed: Utilities.PostedReviewToEmbed(reviewDto, server.GetOriginal).Build());
+                await channel.SendMessageAsync(embed: Utilities.PostedReviewToEmbed(reviewDto, await GmapsUserService.GetGmapsUserById(reviewDto.GmapsUserId), server.GetOriginal).Build());
             }
         }
     }

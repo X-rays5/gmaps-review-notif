@@ -9,6 +9,7 @@ public class UserLatestReview
     private static readonly ILog LOG = LogManager.GetLogger(typeof(UserLatestReview));
 
     private static string placeIDRegex = @"\/place\/([a-zA-Z0-9-_]+)";
+    private static string placeNameRegex = @"maps\/place\/(.*)/@";
 
     public static async Task<PostedReviewDto?> Execute(GmapsUserDto user)
     {
@@ -68,10 +69,34 @@ public class UserLatestReview
         return new PostedReviewDto
         {
             PlaceId = placeID,
+            PlaceName = await GetPlaceName(browser),
             ReviewBody = reviewBody,
             ReviewBodyOriginal = reviewBodyOriginal,
             Stars = starRating,
             GmapsUserId = user.Id
         };
+    }
+
+    private static async Task<string> GetPlaceName(Browser browser)
+    {
+        var placeDetails = browser.Page.Locator("button:has-text('details')").First;
+        if (await placeDetails.CountAsync() > 0)
+        {
+            await placeDetails.ClickAsync();
+            await placeDetails.IsHiddenAsync();
+        }
+
+        await browser.Page.WaitForURLAsync(new Regex(@"google\.com\/maps\/place\/.+/@.*"));
+
+        var placeNameMatch = Regex.Match(browser.Page.Url, placeNameRegex);
+        string placeName = "Unknown Place";
+        if (placeNameMatch.Success)
+        {
+            placeName = Uri.UnescapeDataString(placeNameMatch.Groups[1].Value.Replace('+', ' '));
+        }
+
+        await browser.Page.GoBackAsync();
+
+        return placeName;
     }
 }

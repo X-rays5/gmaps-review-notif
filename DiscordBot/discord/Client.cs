@@ -21,7 +21,8 @@ public class Client
     {
         _client = new DiscordSocketClient(new DiscordSocketConfig
         {
-            LogLevel = LogSeverity.Debug
+            LogLevel = LogSeverity.Debug,
+            GatewayIntents = GatewayIntents.None
         });
 
         _client.Log += Log;
@@ -72,7 +73,7 @@ public class Client
         if (local == null) return false;
 
         if (existing.Description != local.Description.Value) return false;
-        if ((existing.Options?.Count ?? 0) != (local.Options.Value.Count)) return false;
+        if ((existing.Options?.Count ?? 0) != local.Options.GetValueOrDefault(new List<ApplicationCommandOptionProperties>()).Count) return false;
 
         if (existing.Options != null && local.Options.IsSpecified)
         {

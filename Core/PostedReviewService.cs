@@ -1,4 +1,5 @@
 ﻿using DataBase.Accessor;
+using DataBase.Entity;
 using DtoMappers;
 using DtoMappers.Mappers;
 using WebCrawler;
@@ -9,12 +10,12 @@ internal static class PostedReviewService
 {
     public static async Task<PostedReviewDto?> UpdateLatestReviewForUser(GmapsUserDto gmapsUser)
     {
-        await using var dbAccessorPostedReview = new DbAccessorPostedReview();
-        var dbContext = dbAccessorPostedReview.GetDbContext();
+        await using var dbAccessor = new DbAccessorPostedReview();
+        var dbContext = dbAccessor.GetDbContext();
 
         await using var transaction = await dbContext.Database.BeginTransactionAsync();
 
-        var latestPostedReviewInDb = await dbAccessorPostedReview.GetLatestPostedReviewForUser(
+        var latestPostedReviewInDb = await dbAccessor.GetLatestPostedReviewForUser(
             GmapsUserMapper.GmapsUserDtoToEntity(gmapsUser));
 
         if (latestPostedReviewInDb != null && DateTime.UtcNow - latestPostedReviewInDb.TimeCrawled < TimeSpan.FromHours(3))
@@ -25,19 +26,22 @@ internal static class PostedReviewService
             return null;
 
         if (latestPostedReviewInDb != null)
-            dbAccessorPostedReview.RemovePostedReview(latestPostedReviewInDb);
+            dbAccessor.RemovePostedReview(latestPostedReviewInDb);
 
         var latestReviewEntity = PostedReviewMapper.PostedReviewDtoToEntity(latestReview);
-        latestReviewEntity = dbAccessorPostedReview.AddPostedReview(latestReviewEntity);
+        dbAccessor.AddPostedReview(latestReviewEntity);
 
-        await using var dbAccessorGmapsUser = new DbAccessorGmapsUser(dbContext);
-        await dbAccessorGmapsUser.UpdateLatestPostedReviewAsync(gmapsUser.Id, latestReviewEntity);
+        // Fetch the user and update the navigation property directly
+        var userEntity = await dbContext.Set<GmapsUser>().FindAsync(gmapsUser.Id);
+        if (userEntity != null)
+        {
+            userEntity.LatestPostedReview = latestReviewEntity;
+        }
 
-        await dbAccessorPostedReview.SaveChangesAsync();
-        await dbAccessorGmapsUser.SaveChangesAsync();
+        await dbContext.SaveChangesAsync();
+
         await transaction.CommitAsync();
 
         return PostedReviewMapper.PostedReviewToDto(latestReviewEntity);
     }
-
 }

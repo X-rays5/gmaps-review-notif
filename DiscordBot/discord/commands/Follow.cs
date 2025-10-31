@@ -31,7 +31,7 @@ internal class Follow : SlashCommandHandler
     {
         string gmapsUserId = null!;
         var followOption = FollowOption.None;
-        bool getOriginal = false;
+        bool getOriginal = true;
 
         await command.Data.Options.ToAsyncEnumerable().ForEachAsync(option =>
         {

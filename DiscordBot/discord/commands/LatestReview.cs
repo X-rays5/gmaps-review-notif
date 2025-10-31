@@ -21,7 +21,7 @@ public class LatestReview : SlashCommandHandler
     public static async Task HandleCommand(SocketSlashCommand command)
     {
         string gmapsUserId = null!;
-        bool getOriginal = false;
+        bool getOriginal = true;
 
         await command.Data.Options.ToAsyncEnumerable().ForEachAsync(option =>
         {
@@ -51,6 +51,6 @@ public class LatestReview : SlashCommandHandler
             return;
         }
 
-        await command.FollowupAsync(embed: Utilities.PostedReviewToEmbed(postedReview, getOriginal).Build());
+        await command.FollowupAsync(embed: Utilities.PostedReviewToEmbed(postedReview, await GmapsUserService.GetGmapsUserById(gmapsUserId), getOriginal).Build());
     }
 }
