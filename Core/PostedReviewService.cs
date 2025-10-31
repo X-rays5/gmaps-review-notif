@@ -28,7 +28,7 @@ internal static class PostedReviewService
             dbAccessorPostedReview.RemovePostedReview(latestPostedReviewInDb);
 
         var latestReviewEntity = PostedReviewMapper.PostedReviewDtoToEntity(latestReview);
-        dbAccessorPostedReview.AddPostedReview(latestReviewEntity);
+        latestReviewEntity = dbAccessorPostedReview.AddPostedReview(latestReviewEntity);
 
         await using var dbAccessorGmapsUser = new DbAccessorGmapsUser(dbContext);
         await dbAccessorGmapsUser.UpdateLatestPostedReviewAsync(gmapsUser.Id, latestReviewEntity);
@@ -37,7 +37,7 @@ internal static class PostedReviewService
         await dbAccessorGmapsUser.SaveChangesAsync();
         await transaction.CommitAsync();
 
-        return latestReview;
+        return PostedReviewMapper.PostedReviewToDto(latestReviewEntity);
     }
 
 }

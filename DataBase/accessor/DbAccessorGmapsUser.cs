@@ -31,4 +31,12 @@ public class DbAccessorGmapsUser : DbDisposable<AppDbContext>
             gmapsUser.LatestPostedReviewId = postedReview.Id;
         }
     }
+
+    public async Task<List<GmapsUser>> GetUsersWithFollowersAsync()
+    {
+        return await _context.GmapsUsers
+            .Where(u => u.FollowingServers.Any())
+            .Include(u => u.FollowingServers)
+            .ToListAsync();
+    }
 }

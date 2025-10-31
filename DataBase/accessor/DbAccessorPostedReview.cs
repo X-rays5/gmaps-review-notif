@@ -13,13 +13,12 @@ public class DbAccessorPostedReview : DbDisposable<AppDbContext>
         return await _context.PostedReviews
             .Where(r => r.GmapsUserId == gmapsUser.Id)
             .OrderByDescending(r => r.TimeCrawled)
-            .Include(r => r.GmapsUser)
             .FirstOrDefaultAsync();
     }
 
-    public void AddPostedReview(PostedReview postedReview)
+    public PostedReview AddPostedReview(PostedReview postedReview)
     {
-        _context.PostedReviews.Add(postedReview);
+        return _context.PostedReviews.Add(postedReview).Entity;
     }
 
     public PostedReview RemovePostedReview(PostedReview postedReview)

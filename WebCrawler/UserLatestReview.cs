@@ -22,7 +22,6 @@ public class UserLatestReview
         await browser.Page.ClickAsync("div.jftiEf:nth-child(1)");
         await browser.Page.WaitForURLAsync(new Regex(@"\/place\/[a-zA-Z0-9-_]+/@.*"));
 
-        LOG.Info($"Current URL: {browser.Page.Url}");
         var m = Regex.Match(browser.Page.Url, placeIDRegex);
         string? placeID = null;
         if (m.Success)
@@ -45,10 +44,11 @@ public class UserLatestReview
         if (await seeOriginalSpan.CountAsync() > 0)
         {
             await seeOriginalSpan.ClickAsync();
+            await seeOriginalSpan.IsHiddenAsync();
             // re-fetch the review body
             reviewBodySpan = browser.Page.Locator("div[tabindex='-1'] > span");
             reviewBodyOriginal = await reviewBodySpan.First.InnerTextAsync();
-            LOG.Info($"Review body (original): {reviewBody}");
+            LOG.Info($"Review body (original): {reviewBodyOriginal}");
         }
 
         var starSpan = browser.Page.Locator("span[role='img'][aria-label]:has(span.google-symbols)");
@@ -71,7 +71,7 @@ public class UserLatestReview
             ReviewBody = reviewBody,
             ReviewBodyOriginal = reviewBodyOriginal,
             Stars = starRating,
-            GmapsUser = user
+            GmapsUserId = user.Id
         };
     }
 }

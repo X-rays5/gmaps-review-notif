@@ -51,23 +51,6 @@ public class LatestReview : SlashCommandHandler
             return;
         }
 
-        var starsField = new EmbedFieldBuilder();
-        starsField.Name = "Stars";
-        starsField.Value = new string('⭐', postedReview.Stars);
-
-        var bodyField = new EmbedFieldBuilder();
-        bodyField.Name = "Review";
-        bodyField.Value = getOriginal ? postedReview.ReviewBodyOriginal : postedReview.ReviewBody;
-
-        var footer = new EmbedFooterBuilder();
-        footer.Text = "There may be a delay of up to 3 hours for the latest review to be fetched.";
-
-        var builder = new EmbedBuilder();
-        builder.Title = "Latest Review";
-        builder.Fields.Add(starsField);
-        builder.Fields.Add(bodyField);
-        builder.Footer = footer;
-
-        await command.FollowupAsync(embed: builder.Build());
+        await command.FollowupAsync(embed: Utilities.PostedReviewToEmbed(postedReview, getOriginal).Build());
     }
 }

@@ -48,4 +48,16 @@ public static class FollowingServersService
         dbContext.AddFollowingServer(FollowingServerMapper.FollowingServerToEntity(followingServerDto));
         await dbContext.SaveChangesAsync();
     }
+
+    public static async Task<List<FollowingServerDto>> GetServersFollowingUser(string gmapsUserId)
+    {
+        if (string.IsNullOrWhiteSpace(gmapsUserId))
+        {
+            return new List<FollowingServerDto>();
+        }
+
+        await using var dbContext = new DbAccessorFollowingServer();
+        var servers = await dbContext.GetServersFollowingGmapsUserAsync(gmapsUserId);
+        return servers.Select(FollowingServerMapper.FollowingServerToDto).ToList();
+    }
 }

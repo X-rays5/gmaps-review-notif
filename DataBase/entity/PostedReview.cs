@@ -34,6 +34,4 @@ public class PostedReview
     [MinLength(1)]
     [MaxLength(100)]
     public required string GmapsUserId { get; set;  }
-    [ForeignKey(nameof(GmapsUserId))]
-    public GmapsUser GmapsUser { get; set; }
 }

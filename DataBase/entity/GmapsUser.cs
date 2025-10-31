@@ -1,4 +1,5 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 using Microsoft.EntityFrameworkCore;
 
 namespace DataBase.Entity;
@@ -17,6 +18,8 @@ public class GmapsUser
     public required string Name { get; set; }
 
     public List<FollowingServer> FollowingServers { get; set; } = new();
-    
+
     public ulong? LatestPostedReviewId { get; set; }
+    [ForeignKey(nameof(LatestPostedReviewId))]
+    public PostedReview? LatestPostedReview { get; set; }
 }

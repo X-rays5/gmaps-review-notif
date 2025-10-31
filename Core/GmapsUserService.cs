@@ -36,7 +36,7 @@ public static class GmapsUserService
         var latestPostedReview = await GetGmapsUserLastPostedReview(user);
         if (latestPostedReview != null)
         {
-            user.LatestPostedReviewId = latestPostedReview.Id;
+            user.LatestPostedReview = latestPostedReview;
         }
 
         return user;

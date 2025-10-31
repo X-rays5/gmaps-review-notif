@@ -8,5 +8,5 @@ public class PostedReviewDto
     public required int Stars { get;  set; }
     public required string ReviewBody { get;  set; }
     public required string ReviewBodyOriginal { get;  set; }
-    public GmapsUserDto GmapsUser { get; set; }
+    public required string GmapsUserId { get; set;  }
 }

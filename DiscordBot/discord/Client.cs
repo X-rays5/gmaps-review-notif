@@ -11,9 +11,11 @@ public class Client
 {
     private static readonly ILog LOG = LogManager.GetLogger(typeof(Client));
 
-    private static DiscordSocketClient _client;
+    private static DiscordSocketClient _client { get; set; }
 
     private readonly Dictionary<string, Delegate> _commands = new();
+
+    public static DiscordSocketClient DiscordClient => _client;
 
     public async Task Connect()
     {
