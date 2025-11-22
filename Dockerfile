@@ -1,4 +1,16 @@
-# Build stage
+# Diesel CLI builder stage
+FROM rust:1.83-bookworm AS diesel-builder
+
+# Install PostgreSQL dev libraries needed for diesel_cli
+RUN apt-get update && apt-get install -y \
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Diesel CLI with PostgreSQL support only
+# Using specific version for reproducibility
+RUN cargo install diesel_cli --version 2.3.0 --no-default-features --features postgres
+
+# Application builder stage
 FROM rust:1.83-bookworm AS builder
 
 # Install build dependencies including PostgreSQL development libraries
@@ -7,21 +19,24 @@ RUN apt-get update && apt-get install -y \
     pkg-config \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Diesel CLI with PostgreSQL support only
-RUN cargo install diesel_cli --no-default-features --features postgres
-
 WORKDIR /app
 
-# Copy manifests
+# Copy manifests first for better layer caching
 COPY Cargo.toml Cargo.lock ./
 COPY build.rs ./
 
-# Copy source code and migrations
+# Create a dummy main.rs to build dependencies separately (for better caching)
+RUN mkdir src && echo "fn main() {}" > src/main.rs
+
+# Build dependencies first (this layer will be cached if Cargo.toml doesn't change)
+RUN cargo build --release && rm -rf src
+
+# Copy actual source code and migrations
 COPY src ./src
 COPY migrations ./migrations
 COPY diesel.toml ./
 
-# Build the application in release mode
+# Build the application in release mode with the actual source
 RUN cargo build --release
 
 # Runtime stage
@@ -56,8 +71,8 @@ RUN apt-get update && apt-get install -y \
     libvulkan1 \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy Diesel CLI from builder
-COPY --from=builder /usr/local/cargo/bin/diesel /usr/local/bin/diesel
+# Copy Diesel CLI from diesel-builder stage
+COPY --from=diesel-builder /usr/local/cargo/bin/diesel /usr/local/bin/diesel
 
 # Copy the built application
 COPY --from=builder /app/target/release/gmaps_review_notif /usr/local/bin/gmaps_review_notif
@@ -72,5 +87,5 @@ WORKDIR /app
 # DATABASE_URL and DISCORD_TOKEN must be set via docker run -e or docker-compose
 
 # Run database setup (migrations) and then start the application
-CMD diesel setup --migration-dir /app/migrations && \
-    gmaps_review_notif
+# Using exec form to properly handle signals
+CMD ["/bin/sh", "-c", "diesel setup --migration-dir /app/migrations && gmaps_review_notif"]

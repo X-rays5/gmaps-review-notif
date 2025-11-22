@@ -1,0 +1,25 @@
+# Git
+.git
+.gitignore
+
+# Build artifacts
+target
+
+# IDE
+.idea
+.vscode
+
+# Environment
+.env
+.env.local
+
+# Documentation
+README.md
+
+# CI/CD
+.github
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
