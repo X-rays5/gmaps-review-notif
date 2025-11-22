@@ -17,6 +17,8 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # QEMU enables building for multiple CPU architectures (arm64, amd64, etc.)
+      # Required for cross-platform Docker image builds
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
@@ -30,6 +32,8 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # Extracts version information from git tags (e.g., v1.2.3)
+      # Generates Docker tags: v1.2.3, v1.2, v1, latest
       - name: Extract metadata (tags, labels) for Docker
         id: meta
         uses: docker/metadata-action@v5

@@ -18,9 +18,11 @@ services:
     restart: unless-stopped
 
   app:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: ghcr.io/x-rays5/gmaps-review-notif:latest
+    # Uncomment below to build locally instead of using pre-built image
+    # build:
+    #   context: .
+    #   dockerfile: Dockerfile
     container_name: gmaps-review-notif-app
     depends_on:
       postgres:
@@ -28,14 +30,14 @@ services:
     environment:
       # Required environment variables - MUST be set
       DATABASE_URL: postgres://gmaps_user:gmaps_password@postgres:5432/gmaps_reviews
-      DISCORD_TOKEN: ${DISCORD_TOKEN:?DISCORD_TOKEN environment variable is required}
+      DISCORD_TOKEN: your_discord_token_here
       
       # Optional configuration with defaults
-      STAR_TEXT: ${STAR_TEXT:-⭐}
-      FETCH_REVIEWS_ON_STARTUP: ${FETCH_REVIEWS_ON_STARTUP:-true}
-      NEW_REVIEW_FETCH_INTERVAL: ${NEW_REVIEW_FETCH_INTERVAL:-0 0 */6 * * *}
-      REVIEW_AGE_LIMIT_HOURS: ${REVIEW_AGE_LIMIT_HOURS:-24}
-      RUST_LOG: ${RUST_LOG:-info}
+      STAR_TEXT: ⭐
+      FETCH_REVIEWS_ON_STARTUP: true
+      NEW_REVIEW_FETCH_INTERVAL: 0 0 */6 * * *
+      REVIEW_AGE_LIMIT_HOURS: 24
+      RUST_LOG: info
     restart: unless-stopped
 
 volumes:

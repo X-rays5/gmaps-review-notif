@@ -1,127 +1,72 @@
 # Google Maps Review Notifier
 
-A Discord bot that monitors Google Maps reviews and sends notifications to Discord channels. The bot uses web scraping to check for new reviews and can be configured to run on a schedule.
+A Discord bot that monitors Google Maps user profiles for new reviews and sends notifications to Discord channels via webhooks. The bot uses headless Chrome for web scraping and runs on a configurable schedule to check for new reviews.
+
+**Note:** Only the Docker environment is officially tested and supported for deployment.
 
 ## Features
 
 - Monitor Google Maps user profiles for new reviews
 - Send notifications to Discord channels via webhooks
-- Scheduled review fetching with configurable intervals
+- Scheduled review fetching with configurable cron intervals
 - PostgreSQL database for tracking reviews and followed users
-- Docker support for easy deployment
+- Headless Chrome web scraping with `--headless=new` support
+- Multi-architecture Docker support (x64 and ARM64)
 
-## Docker Deployment
+## Quick Start
 
-### Quick Start with Docker Compose
+See [DOCKER.md](DOCKER.md) for detailed Docker deployment instructions.
 
-1. Copy the environment template:
-```bash
-cp .env.example .env
-```
+**TL;DR:**
+1. Edit `DISCORD_TOKEN` in `docker-compose.yml`
+2. Run `docker-compose up -d`
 
-2. Edit `.env` and set your Discord bot token:
-```bash
-DISCORD_TOKEN=your_discord_bot_token_here
-```
+The bot will automatically set up the database, run migrations, and start monitoring.
 
-3. Start the services:
-```bash
-docker-compose up -d
-```
+## Configuration
 
-The bot will automatically:
-- Set up the PostgreSQL database
-- Run Diesel migrations
-- Start monitoring for reviews
+The bot is configured via environment variables:
 
-### Using Pre-built Images
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `DISCORD_TOKEN` | **Yes** | - | Your Discord bot token |
+| `DATABASE_URL` | **Yes** | - | PostgreSQL connection string |
+| `STAR_TEXT` | No | ⭐ | Text to use for star ratings |
+| `FETCH_REVIEWS_ON_STARTUP` | No | `true` | Fetch reviews when bot starts |
+| `NEW_REVIEW_FETCH_INTERVAL` | No | `0 0 */6 * * *` | Cron schedule for review checks (every 6 hours) |
+| `REVIEW_AGE_LIMIT_HOURS` | No | `24` | Only notify about reviews newer than this |
+| `RUST_LOG` | No | `info` | Logging level (error, warn, info, debug, trace) |
 
-Pull the latest image from GitHub Container Registry:
-```bash
-docker pull ghcr.io/x-rays5/gmaps-review-notif:latest
-```
+Database URL format: `postgres://user:password@host:port/database`
 
-Run with required environment variables:
-```bash
-docker run -d \
-  -e DISCORD_TOKEN=your_token_here \
-  -e DATABASE_URL=postgres://user:password@host:5432/dbname \
-  ghcr.io/x-rays5/gmaps-review-notif:latest
-```
+## Architecture
 
-### Building Locally
+- **Language:** Rust
+- **Database:** PostgreSQL with Diesel ORM
+- **Discord:** poise framework
+- **Web Scraping:** headless_chrome with Chrome's `--headless=new` mode
+- **Scheduling:** tokio-cron-scheduler
 
-Build the Docker image:
-```bash
-docker build -t gmaps-review-notif .
-```
+## Development
 
-### Multi-Architecture Support
+### Local Development (Not Officially Supported)
 
-The published images support both x64 (amd64) and ARM64 (arm64) architectures, suitable for:
-- x64: Most cloud providers, desktop computers
-- ARM64: Raspberry Pi 4/5, AWS Graviton, Apple Silicon (via Docker Desktop)
+For local development outside Docker:
 
-## Environment Variables
+1. Install Rust 1.83+, PostgreSQL 18, and Diesel CLI
+2. Set environment variables:
+   ```bash
+   export DATABASE_URL=postgres://user:password@localhost/dbname
+   export DISCORD_TOKEN=your_token_here
+   ```
+3. Run database setup: `diesel setup`
+4. Build and run: `cargo run`
 
-### Required
-- `DISCORD_TOKEN`: Your Discord bot token
-- `DATABASE_URL`: PostgreSQL connection string (format: `postgres://user:password@host:port/database`)
-
-### Optional
-- `STAR_TEXT`: Text to use for star ratings (default: ⭐)
-- `FETCH_REVIEWS_ON_STARTUP`: Fetch reviews when bot starts (default: true)
-- `NEW_REVIEW_FETCH_INTERVAL`: Cron schedule for review checks (default: `0 0 */6 * * *` - every 6 hours)
-- `REVIEW_AGE_LIMIT_HOURS`: Only notify about reviews newer than this (default: 24)
-- `RUST_LOG`: Logging level (default: info, options: error, warn, info, debug, trace)
-
-## Local Development
-
-### Prerequisites
-- Rust 1.83 or later
-- PostgreSQL 18
-- Diesel CLI: `cargo install diesel_cli --no-default-features --features postgres`
-
-### Setup
-1. Install dependencies:
-```bash
-cargo build
-```
-
-2. Set up the database:
-```bash
-export DATABASE_URL=postgres://user:password@localhost/dbname
-diesel setup
-```
-
-3. Run the application:
-```bash
-export DISCORD_TOKEN=your_token_here
-cargo run
-```
+**Note:** The Docker environment is the recommended and officially tested deployment method.
 
 ## CI/CD
 
-The project includes two GitHub Actions workflows:
-
-1. **CI** (`ci.yml`): Runs on every push/PR
-   - Tests Diesel migrations
-   - Builds the project
-
-2. **Docker Publish** (`docker-publish.yml`): Runs on tag pushes (e.g., `v1.0.0`)
-   - Builds multi-architecture Docker images (x64 and ARM64)
-   - Publishes to GitHub Container Registry
-   - Creates a GitHub release with automatic release notes
-
-### Creating a Release
-
-To trigger a new release:
-```bash
-git tag v1.0.0
-git push origin v1.0.0
-```
-
-This will automatically build and publish Docker images and create a GitHub release.
+See [RELEASING.md](RELEASING.md) for information about the release process and CI/CD workflows.
 
 ## License
 
