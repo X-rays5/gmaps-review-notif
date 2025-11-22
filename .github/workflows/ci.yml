@@ -59,5 +59,11 @@ jobs:
     - name: Run Diesel migrations
       run: diesel setup
 
+    - name: Run rollbacks
+      run: diesel migration revert --all
+
+    - name: Re-run migrations after rollback
+      run: diesel migration run
+
     - name: Build project
       run: cargo build --verbose
