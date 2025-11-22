@@ -1,0 +1,42 @@
+services:
+  postgres:
+    image: postgres:18-alpine
+    container_name: gmaps-review-notif-db
+    environment:
+      POSTGRES_USER: gmaps_user
+      POSTGRES_PASSWORD: gmaps_password
+      POSTGRES_DB: gmaps_reviews
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gmaps_user -d gmaps_reviews"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: gmaps-review-notif-app
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      # Required environment variables - MUST be set
+      DATABASE_URL: postgres://gmaps_user:gmaps_password@postgres:5432/gmaps_reviews
+      DISCORD_TOKEN: ${DISCORD_TOKEN:?DISCORD_TOKEN environment variable is required}
+      
+      # Optional configuration with defaults
+      STAR_TEXT: ${STAR_TEXT:-⭐}
+      FETCH_REVIEWS_ON_STARTUP: ${FETCH_REVIEWS_ON_STARTUP:-true}
+      NEW_REVIEW_FETCH_INTERVAL: ${NEW_REVIEW_FETCH_INTERVAL:-0 0 */6 * * *}
+      REVIEW_AGE_LIMIT_HOURS: ${REVIEW_AGE_LIMIT_HOURS:-24}
+      RUST_LOG: ${RUST_LOG:-info}
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
