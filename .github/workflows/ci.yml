@@ -10,28 +10,36 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    
+    env:
+      POSTGRES_USER: testuser
+      POSTGRES_PASSWORD: verysecurepassword
+      POSTGRES_DB: testdb
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: 5432
+      RUSTFLAGS: "-A dead_code"
+    
     services:
       postgres:
         image: postgres:18-alpine
         ports:
           - 5432:5432
         env:
-          POSTGRES_USER: testuser
-          POSTGRES_PASSWORD: verysecurepassword
-          POSTGRES_DB: testdb
+          POSTGRES_USER: ${{ env.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ env.POSTGRES_PASSWORD }}
+          POSTGRES_DB: ${{ env.POSTGRES_DB }}
         options: >-
-          --health-cmd "pg_isready -U testuser -d testdb"
+          --health-cmd "pg_isready -U ${{ env.POSTGRES_USER }} -d ${{ env.POSTGRES_DB }}"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
 
-    env:
-      DATABASE_URL: postgres://testuser:verysecurepassword@localhost:5432/testdb
-      RUSTFLAGS: "-A dead_code"
-
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
+
+    - name: Set DATABASE_URL
+      run: echo "DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}" >> $GITHUB_ENV
 
     - name: Install Rust
       uses: actions-rust-lang/setup-rust-toolchain@v1
@@ -41,7 +49,7 @@ jobs:
 
     - name: Wait for Postgres
       run: |
-        until pg_isready -h localhost -p 5432 -U testuser; do
+        until pg_isready -h ${POSTGRES_HOST} -p ${POSTGRES_PORT} -U ${POSTGRES_USER}; do
           sleep 1
         done
 
