@@ -83,11 +83,9 @@ If you need to create a release manually:
 
 Before creating a release:
 
-- [ ] All tests pass in CI
 - [ ] Documentation is up to date
-- [ ] CHANGELOG updated (if maintained)
-- [ ] Version number follows semantic versioning
-- [ ] No known critical bugs
+- [ ] Version number in `Cargo.toml` matches the tag (e.g., tag `v1.0.0` should have version `1.0.0` in Cargo.toml)
+- [ ] Version follows semantic versioning
 - [ ] Database migrations tested
 
 ## Rollback
@@ -105,4 +103,7 @@ To rollback to a previous version:
    docker-compose up -d
    ```
 
-Note: Database migrations are not automatically rolled back. Use `diesel migration revert` if needed.
+Note: Database migrations are not automatically rolled back. You'll need to manually revert them:
+```bash
+docker-compose exec app diesel migration revert
+```

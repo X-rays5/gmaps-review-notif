@@ -39,16 +39,16 @@ docker-compose ps
 
 The `docker-compose.yml` file uses the pre-built image from GitHub Container Registry by default. All configuration is done through environment variables in the compose file.
 
-### Using an External PostgreSQL Database
+### Configure PostgreSQL
 
-The bot always connects to an external PostgreSQL database (specified in `DATABASE_URL`). The included `docker-compose.yml` runs PostgreSQL in a separate container, but you can point to any PostgreSQL instance:
+The included `docker-compose.yml` provides a PostgreSQL container for convenience, but you can use any PostgreSQL instance by updating the `DATABASE_URL`:
 
 ```yaml
 environment:
   DATABASE_URL: postgres://username:password@your-postgres-host:5432/dbname
 ```
 
-If using an external database, you can remove the `postgres` service from `docker-compose.yml`.
+If using a different PostgreSQL instance, you can remove the `postgres` service from `docker-compose.yml`.
 
 ### Building Locally
 
