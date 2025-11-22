@@ -7,7 +7,8 @@ edition = "2024"
 poise = "0.6.1"
 dotenvy = "0.15.7"
 headless_chrome = { version = "1.0.18", features = ["fetch"] }
-diesel = "2.3.3"
+diesel = { version = "2.3.3", features = ["postgres", "r2d2", "chrono"] }
+diesel_migrations = "2.3.0"
 anyhow = "1.0.100"
 tokio = { version = "1.48.0", features = ["rt", "rt-multi-thread", "macros"] }
 regex = "1.12.2"
@@ -15,3 +16,5 @@ tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
 tracing-log = "0.2.0"
 urlencoding = "2.1.3"
+chrono = "0.4.42"
+once_cell = "1.21.3"

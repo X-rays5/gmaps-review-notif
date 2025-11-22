@@ -2,22 +2,15 @@ use std::thread::sleep;
 use std::time::Duration;
 use anyhow::Result;
 use crate::crawler::browser;
+use crate::models::*;
 
 static GMAPS_REVIEW_URL: &str = "https://www.google.com/maps/contrib/{}/reviews?hl=en";
 
-pub struct GmapsReview {
-    pub user_id: String,
-    pub text: String,
-    pub original_text: String,
-    pub star_rating: u8,
-    pub place_name: String,
-}
-
-pub fn get_latest_review_for_user(user_id: &str) -> Result<GmapsReview> {
+pub fn get_latest_review_for_user(gmaps_user: User) -> Result<NewReview> {
     let browser = browser::get(true)?;
     let tab = browser::new_tab(&browser)?;
 
-    let review_url = GMAPS_REVIEW_URL.replace("{}", user_id);
+    let review_url = GMAPS_REVIEW_URL.replace("{}", gmaps_user.gmaps_id.as_ref());
 
     tab.navigate_to(review_url.as_str())?;
     browser::wait_for_url(&tab, "reviews/@", 10000)?;
@@ -29,7 +22,7 @@ pub fn get_latest_review_for_user(user_id: &str) -> Result<GmapsReview> {
             sleep(Duration::from_secs(1));
         }
         None => {
-            return Err(anyhow::anyhow!("No reviews found for user {}", user_id));
+            return Err(anyhow::anyhow!("No reviews found for user {}", gmaps_user.gmaps_id.as_str()));
         }
     }
     browser::wait_for_url_regex(&tab, &regex::Regex::new(r#"/place/[a-zA-Z0-9-_]+/@.*"#)?, 10000)?;
@@ -53,12 +46,12 @@ pub fn get_latest_review_for_user(user_id: &str) -> Result<GmapsReview> {
             };
 
             let original_review_text = original_review_text_element.get_inner_text()?;
-            original_review_text
+            Some(original_review_text)
         }
-        Err(_) => review_text.clone(),
+        Err(_) => None,
     };
 
-    tracing::debug!("Retrieved review text: '{}', '{}'", review_text, original_review_text);
+    tracing::debug!("Retrieved review text: '{}'", review_text);
 
     let stars_span = tab.find_elements_by_xpath(r#"//span[contains(@aria-label, "stars")]/span[contains(@class, "google-symbols")]"#)?;
     if stars_span.is_empty() {
@@ -90,12 +83,12 @@ pub fn get_latest_review_for_user(user_id: &str) -> Result<GmapsReview> {
 
     tracing::debug!("Retrieved place name: {}", place_name);
 
-    Ok(GmapsReview {
-        user_id: user_id.to_string(),
-        text: review_text,
-        original_text: original_review_text,
-        star_rating: star_count,
+    Ok(NewReview {
         place_name,
+        review_text,
+        review_original_text: original_review_text,
+        stars: star_count,
+        user_id: gmaps_user.id,
     })
 }
 

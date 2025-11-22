@@ -1,9 +1,9 @@
 use anyhow::{Error, Result};
-use crate::crawler::pages::{review, user};
+use poise::CreateReply;
+use poise::serenity_prelude::{CreateEmbed, CreateEmbedAuthor, CreateEmbedFooter};
+use crate::provider::*;
 
 type Context<'a, U> = poise::Context<'a, U, Error>;
-
-static STAR_EMOJI: &str = "<:starrating:1433928079805517874>";
 
 #[poise::command(
     slash_command,
@@ -35,23 +35,19 @@ pub async fn lookup_user<U: Sync>(
 ) -> Result<()> {
     ctx.defer().await?;
 
-    match user::get_user_from_id(&id) {
+    match user::get_user_from_gmaps_id(id) {
         Ok(user) => {
-            let embed = poise::serenity_prelude::CreateEmbed::default()
+            let embed = CreateEmbed::default()
                 .title("User Lookup")
-                .field("Name", &user.name, true)
-                .field("ID", &user.id, true)
-                .color(0x4A90E2);
-
-            ctx.send(
-                poise::CreateReply::default()
-                    .embed(embed)
-            ).await?;
+                .field("Name", user.name, false)
+                .field("GMaps ID", user.gmaps_id, false)
+                .color(0x00FF00);
+            ctx.send(CreateReply::default().embed(embed).ephemeral(true)).await?;
         }
         Err(e) => {
             ctx.send(
-                poise::CreateReply::default()
-                    .content(format!("❌ Failed to look up user: {}", e))
+                CreateReply::default()
+                    .content(format!("❌ Failed to find user: {}", e))
                     .ephemeral(true)
             ).await?;
         }
@@ -73,24 +69,31 @@ pub async fn latest_review<U: Sync>(
 ) -> Result<()> {
     ctx.defer().await?;
 
-    match review::get_latest_review_for_user(&id) {
-        Ok(review) => {
-            let embed = poise::serenity_prelude::CreateEmbed::default()
-                .title("Latest Review")
-                .field("Place", &review.place_name, false)
-                .field("Rating", STAR_EMOJI.repeat(review.star_rating as usize), true)
-                .field("Review", &review.text, false)
-                .color(0x34A853);
+    match review::get_latest_review_for_user(id.as_str()) {
+        Some(review_with_user) => {
+            let review_body = if original.unwrap_or(false) {
+                match &review_with_user.review.review_original_text {
+                    Some(text) => text.as_str(),
+                    None => review_with_user.review.review_text.as_str(),
+                }
+            } else {
+                review_with_user.review.review_text.as_str()
+            };
+            let embed = CreateEmbed::default()
+                .title(review_with_user.review.place_name)
+                .field("Stars", crate::config::get_config().star_text.repeat(review_with_user.review.stars.try_into()?), false)
+                .author(CreateEmbedAuthor::new(review_with_user.user.name))
+                .timestamp(review_with_user.review.found_at.and_utc())
+                .description(review_body)
+                .footer(CreateEmbedFooter::new("Due to caching this might not be the most recent review"));
 
-            ctx.send(
-                poise::CreateReply::default()
-                    .embed(embed)
-            ).await?;
+
+            ctx.send(CreateReply::default().embed(embed).ephemeral(false)).await?;
         }
-        Err(e) => {
+        None => {
             ctx.send(
-                poise::CreateReply::default()
-                    .content(format!("❌ Failed to get latest review: {}", e))
+                CreateReply::default()
+                    .content("❌ No reviews found for the specified user.")
                     .ephemeral(true)
             ).await?;
         }
