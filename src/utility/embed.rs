@@ -3,12 +3,12 @@ use poise::serenity_prelude::{CreateEmbed, CreateEmbedAuthor, CreateEmbedFooter}
 
 pub fn get_review_embed(review_with_user: &ReviewWithUser, original: bool) -> CreateEmbed {
     let review_body = if original {
-        match &review_with_user.review.review_original_text {
+        match &review_with_user.review.original_text {
             Some(text) => text.as_str(),
-            None => review_with_user.review.review_text.as_str(),
+            None => review_with_user.review.text.as_str(),
         }
     } else {
-        review_with_user.review.review_text.as_str()
+        review_with_user.review.text.as_str()
     };
 
     CreateEmbed::default()

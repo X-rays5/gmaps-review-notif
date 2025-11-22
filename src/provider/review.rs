@@ -24,20 +24,14 @@ pub fn get_new_review(user_id: i32) -> Option<ReviewWithUser> {
                     return None;
                 }
             };
-            match fetch_and_save_latest_review(user) {
-                Some(new_r) => new_r,
-                None => return None,
-            }
+            fetch_and_save_latest_review(&user)?
         }
         Some(ref r) => {
             let age_limit_hours = crate::config::get_config().review_age_limit_hours;
             let age_limit_duration = chrono::Duration::hours(age_limit_hours);
             let cutoff_time = (chrono::Utc::now() - age_limit_duration).naive_utc();
             if r.review.found_at <= cutoff_time {
-                match fetch_and_save_latest_review(r.user.clone()) {
-                    Some(new_r) => new_r,
-                    None => return None,
-                }
+                fetch_and_save_latest_review(&r.user)?
             } else {
                 return None;
             }
@@ -46,7 +40,7 @@ pub fn get_new_review(user_id: i32) -> Option<ReviewWithUser> {
 
     let old_review = old_review_opt.unwrap();
     if old_review.review.place_name != new_review.review.place_name
-        && old_review.review.review_text != new_review.review.review_text
+        && old_review.review.text != new_review.review.text
         && old_review.review.stars != new_review.review.stars
     {
         Some(new_review)
@@ -56,18 +50,15 @@ pub fn get_new_review(user_id: i32) -> Option<ReviewWithUser> {
 }
 
 pub fn get_latest_review_for_user(user_id: i32) -> Option<ReviewWithUser> {
-    match get_latest_review_from_db(user_id) {
-        Some(review) => Some(review),
-        None => {
-            let user = match user::get_user_from_id(user_id) {
-                Ok(u) => u,
-                Err(e) => {
-                    tracing::error!("Failed to get user with id {}: {}", user_id, e);
-                    return None;
-                }
-            };
-            fetch_and_save_latest_review(user)
-        }
+    if let Some(review) = get_latest_review_from_db(user_id) { Some(review) } else {
+        let user = match user::get_user_from_id(user_id) {
+            Ok(u) => u,
+            Err(e) => {
+                tracing::error!("Failed to get user with id {}: {}", user_id, e);
+                return None;
+            }
+        };
+        fetch_and_save_latest_review(&user)
     }
 }
 
@@ -84,7 +75,7 @@ fn get_latest_review_from_db(user_id: i32) -> Option<ReviewWithUser> {
         .ok()
 }
 
-fn fetch_and_save_latest_review(user: User) -> Option<ReviewWithUser> {
+fn fetch_and_save_latest_review(user: &User) -> Option<ReviewWithUser> {
     let new_review = match crate::crawler::pages::review::get_latest_review_for_user(user) {
         Ok(r) => r,
         Err(e) => {

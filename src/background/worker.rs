@@ -6,15 +6,12 @@ use crate::{provider, utility};
 use poise::serenity_prelude as serenity;
 
 pub async fn channel_started_following_user(following: Following) {
-    let review = match provider::review::get_latest_review_for_user(following.followed_user_id) {
-        Some(r) => r,
-        None => {
-            tracing::info!(
+    let Some(review) = provider::review::get_latest_review_for_user(following.followed_user_id) else {
+        tracing::info!(
                 "No reviews found for newly followed user with id: {}",
                 following.followed_user_id
             );
-            return;
-        }
+        return;
     };
 
     notify_new_review(following, review).await;
@@ -37,15 +34,12 @@ pub fn check_for_new_reviews() {
 
 fn process_outdated_user_reviews(users: Vec<User>) {
     for user in users {
-        let review = match provider::review::get_new_review(user.id) {
-            Some(r) => r,
-            None => {
-                tracing::info!(
+        let Some(review) = provider::review::get_new_review(user.id) else {
+            tracing::info!(
                     "No new reviews found for followed user with id: {}",
                     user.id
                 );
-                continue;
-            }
+            continue;
         };
 
         let followers = match following::get_followers_of_user(user.id) {
@@ -65,26 +59,22 @@ fn process_outdated_user_reviews(users: Vec<User>) {
 
 async fn notify_new_review(following: Following, review: ReviewWithUser) {
     let http = serenity::Http::new(get_config().discord_token.as_str());
-    let webhook_id = match ensure_webhook_exists(
+    let Some(webhook_id) = ensure_webhook_exists(
         following.webhook_id.as_str(),
         following.channel_id.as_str(),
         &http,
     )
-    .await
-    {
-        Some(id) => id,
-        None => {
-            tracing::error!(
+        .await else {
+        tracing::error!(
                 "Failed to ensure webhook exists for channel_id: {}",
                 following.channel_id
             );
-            return;
-        }
+        return;
     };
 
     if webhook_id != following.webhook_id {
         match following::update_webhook(webhook_id.as_str(), following.channel_id.as_str()) {
-            Ok(_) => tracing::info!(
+            Ok(()) => tracing::info!(
                 "Updated webhook ID for channel_id: {}",
                 following.channel_id
             ),
@@ -100,7 +90,7 @@ async fn notify_new_review(following: Following, review: ReviewWithUser) {
         &http,
         serenity::WebhookId::new(webhook_id.parse().unwrap()),
     )
-    .await
+        .await
     {
         Ok(wh) => wh,
         Err(e) => {

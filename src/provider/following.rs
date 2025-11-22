@@ -94,7 +94,7 @@ pub fn is_user_followed_in_channel(user_id: i32, channel: String) -> bool {
     match following::table
         .filter(following::followed_user_id.eq(user_id))
         .filter(following::channel_id.eq(channel))
-        .first::<crate::models::Following>(&mut conn)
+        .first::<Following>(&mut conn)
     {
         Ok(_) => true,
         Err(diesel::result::Error::NotFound) => false,
@@ -150,7 +150,7 @@ pub fn unfollow_user_in_channel(user_id: i32, channel: String) -> Result<Followi
             .filter(following::followed_user_id.eq(user_id))
             .filter(following::channel_id.eq(channel)),
     )
-    .get_result::<Following>(&mut conn)
+        .get_result::<Following>(&mut conn)
     {
         Ok(deleted) => Ok(deleted),
         Err(e) => {

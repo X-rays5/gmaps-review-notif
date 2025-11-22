@@ -23,7 +23,7 @@ pub async fn lookup_user<U: Sync>(
                 .title("User Lookup")
                 .field("Name", user.name, false)
                 .field("GMaps ID", user.gmaps_id, false)
-                .color(0x00FF00);
+                .color(0x0000_FF00);
             ctx.send(CreateReply::default().embed(embed).ephemeral(true))
                 .await?;
         }
@@ -33,7 +33,7 @@ pub async fn lookup_user<U: Sync>(
                     .content(format!("❌ Failed to find user: {}", e))
                     .ephemeral(true),
             )
-            .await?;
+                .await?;
         }
     }
 

@@ -36,11 +36,11 @@ pub fn get(accept_terms: bool) -> Result<Browser> {
     match browser {
         Ok(b) => {
             if accept_terms {
-                accept_gmaps_terms(b.clone())?;
+                accept_gmaps_terms(&b)?;
             }
             Ok(b)
         }
-        Err(e) => Err(anyhow::anyhow!("Failed to launch browser: {}", e)),
+        Err(e) => Err(anyhow::anyhow!("Failed to launch browser: {e}")),
     }
 }
 
@@ -51,8 +51,8 @@ pub fn new_tab(browser: &Browser) -> Result<AutoClosableTab> {
     Ok(AutoClosableTab { tab })
 }
 
-pub fn accept_gmaps_terms(browser: Browser) -> Result<()> {
-    let tab = new_tab(&browser)?;
+pub fn accept_gmaps_terms(browser: &Browser) -> Result<()> {
+    let tab = new_tab(browser)?;
 
     tab.navigate_to("https://www.google.com/maps?hl=en")?;
     tab.wait_until_navigated()?;
@@ -68,12 +68,10 @@ pub fn accept_gmaps_terms(browser: Browser) -> Result<()> {
             Err(e) => {
                 if tab.get_url().contains("consent.google.com") {
                     return Err(anyhow::anyhow!(
-                        "Accept button not found on terms page: {}",
-                        e
+                        "Accept button not found on terms page: {e}"
                     ));
-                } else {
-                    break;
                 }
+                break;
             }
         }
     }
@@ -89,11 +87,10 @@ pub fn wait_for_url(
     tracing::debug!("Waiting for URL: {}", url_substring);
     let start = std::time::Instant::now();
     while !tab.get_url().contains(url_substring) {
-        if start.elapsed().as_millis() > timeout_ms as u128 {
+        if start.elapsed().as_millis() > u128::from(timeout_ms) {
             tracing::debug!("Current URL: {}", tab.get_url());
             return Err(anyhow::anyhow!(
-                "Timeout waiting for URL containing: {}",
-                url_substring
+                "Timeout waiting for URL containing: {url_substring}"
             ));
         }
         std::thread::sleep(Duration::from_millis(100));
@@ -111,7 +108,7 @@ pub fn wait_for_url_regex(
     tracing::debug!("Waiting for URL matching pattern: {}", url_pattern.as_str());
     let start = std::time::Instant::now();
     while !url_pattern.is_match(&tab.get_url()) {
-        if start.elapsed().as_millis() > timeout_ms as u128 {
+        if start.elapsed().as_millis() > u128::from(timeout_ms) {
             tracing::debug!("Current URL: {}", tab.get_url());
             return Err(anyhow::anyhow!(
                 "Timeout waiting for URL matching pattern: {}",
@@ -136,7 +133,7 @@ pub fn wait_dom_ready(tab: &headless_chrome::Tab, timeout_ms: u64) -> Result<()>
         .unwrap()
         .eq("complete")
     {
-        if start.elapsed().as_millis() > timeout_ms as u128 {
+        if start.elapsed().as_millis() > u128::from(timeout_ms) {
             tracing::debug!(
                 "Current readyState: {}",
                 tab.evaluate("document.readyState", false)?

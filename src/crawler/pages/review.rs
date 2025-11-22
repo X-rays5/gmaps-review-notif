@@ -1,12 +1,12 @@
 use crate::crawler::browser;
-use crate::models::*;
+use crate::models::{NewReview, User};
 use anyhow::Result;
 use std::thread::sleep;
 use std::time::Duration;
 
 static GMAPS_REVIEW_URL: &str = "https://www.google.com/maps/contrib/{}/reviews?hl=en";
 
-pub fn get_latest_review_for_user(gmaps_user: User) -> Result<NewReview> {
+pub fn get_latest_review_for_user(gmaps_user: &User) -> Result<NewReview> {
     let browser = browser::get(true)?;
     let tab = browser::new_tab(&browser)?;
 
@@ -33,7 +33,7 @@ pub fn get_latest_review_for_user(gmaps_user: User) -> Result<NewReview> {
     }
     browser::wait_for_url_regex(
         &tab,
-        &regex::Regex::new(r#"/place/[a-zA-Z0-9-_]+/@.*"#)?,
+        &regex::Regex::new(r"/place/[a-zA-Z0-9-_]+/@.*")?,
         10000,
     )?;
     browser::wait_dom_ready(&tab, 10000)?;
@@ -94,7 +94,7 @@ pub fn get_latest_review_for_user(gmaps_user: User) -> Result<NewReview> {
     let place_details_button =
         tab.find_element_by_xpath(r#"//div[contains(@jsaction, "placeNameHeader")]"#)?;
     place_details_button.click()?;
-    browser::wait_for_url_regex(&tab, &regex::Regex::new(r#"maps/place/.+/@.*"#)?, 10000)?;
+    browser::wait_for_url_regex(&tab, &regex::Regex::new(r"maps/place/.+/@.*")?, 10000)?;
     browser::wait_dom_ready(&tab, 10000)?;
     let place_name =
         get_place_name_from_url(&tab.get_url()).unwrap_or_else(|| "Unknown Place".to_string());
@@ -103,15 +103,15 @@ pub fn get_latest_review_for_user(gmaps_user: User) -> Result<NewReview> {
 
     Ok(NewReview {
         place_name,
-        review_text,
-        review_original_text: original_review_text,
+        text: review_text,
+        original_text: original_review_text,
         stars: star_count,
         user_id: gmaps_user.id,
     })
 }
 
 fn get_place_name_from_url(url: &str) -> Option<String> {
-    let re = regex::Regex::new(r#"/place/([^/]+)/@"#).ok()?;
+    let re = regex::Regex::new(r"/place/([^/]+)/@").ok()?;
     let caps = re.captures(url)?;
     match caps.get(1).map(|m| m.as_str().to_string()) {
         Some(mut name) => {

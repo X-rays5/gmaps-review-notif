@@ -5,11 +5,11 @@ use anyhow::{anyhow, Result};
 use diesel::prelude::*;
 
 pub fn get_user_from_gmaps_id(gmaps_id: &str) -> Result<User> {
-    match get_user_from_gmaps_id_db(&gmaps_id) {
+    match get_user_from_gmaps_id_db(gmaps_id) {
         Some(u) => Ok(u),
-        None => match fetch_and_save_user(&gmaps_id) {
+        None => match fetch_and_save_user(gmaps_id) {
             Some(new_user) => Ok(new_user),
-            None => Err(anyhow!("Failed to fetch user with gmaps_id: {}", gmaps_id)),
+            None => Err(anyhow!("Failed to fetch user with gmaps_id: {gmaps_id}")),
         },
     }
 }
@@ -24,7 +24,7 @@ pub fn get_user_from_id(user_id: i32) -> Result<User> {
         Ok(user) => Ok(user),
         Err(e) => {
             tracing::error!("Database query error: {}", e);
-            Err(anyhow!("Failed to find user with id: {}", user_id))
+            Err(anyhow!("Failed to find user with id: {user_id}"))
         }
     }
 }
@@ -34,7 +34,7 @@ pub fn gmaps_user_id_to_db_id(gmaps_id: &str) -> Option<i32> {
         Ok(u) => Some(u.id),
         Err(e) => {
             tracing::error!("Failed to get user from gmaps_id {}: {}", gmaps_id, e);
-            return None;
+            None
         }
     }
 }

@@ -14,7 +14,7 @@ pub fn get_user_from_id(user_id: &str) -> Result<NewUser> {
     browser::wait_for_url(&tab, "/reviews/@", 15000)?;
 
     let name_element = tab.find_element(
-        r#"h1.fontHeadlineLarge[role='button'][tabindex='0'][aria-haspopup='true']"#,
+        r"h1.fontHeadlineLarge[role='button'][tabindex='0'][aria-haspopup='true']",
     )?;
     let name = name_element.get_inner_text()?;
     Ok(NewUser {

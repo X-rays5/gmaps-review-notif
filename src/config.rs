@@ -1,4 +1,4 @@
-use once_cell::sync::Lazy;
+use std::sync::LazyLock;
 
 pub struct Config {
     pub star_text: String,
@@ -9,7 +9,7 @@ pub struct Config {
     pub review_age_limit_hours: i64,
 }
 
-static CONFIG: Lazy<Config> = Lazy::new(|| Config {
+static CONFIG: LazyLock<Config> = LazyLock::new(|| Config {
     star_text: std::env::var("STAR_TEXT").unwrap_or_else(|_| "⭐".to_string()),
     fetch_reviews_on_startup: std::env::var("FETCH_REVIEWS_ON_STARTUP")
         .unwrap_or_else(|_| "true".to_string())

@@ -28,8 +28,8 @@ pub struct NewUser {
 pub struct Review {
     pub id: i32,
     pub place_name: String,
-    pub review_text: String,
-    pub review_original_text: Option<String>,
+    pub text: String,
+    pub original_text: Option<String>,
     pub stars: i32,
     pub user_id: i32,
     pub found_at: NaiveDateTime,
@@ -40,8 +40,8 @@ pub struct Review {
 #[diesel(check_for_backend(diesel::pg::Pg))]
 pub struct NewReview {
     pub place_name: String,
-    pub review_text: String,
-    pub review_original_text: Option<String>,
+    pub text: String,
+    pub original_text: Option<String>,
     pub stars: i32,
     pub user_id: i32,
 }

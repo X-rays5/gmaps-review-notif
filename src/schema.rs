@@ -17,8 +17,8 @@ diesel::table! {
         id -> Int4,
         #[max_length = 255]
         place_name -> Varchar,
-        review_text -> Text,
-        review_original_text -> Nullable<Text>,
+        text -> Text,
+        original_text -> Nullable<Text>,
         stars -> Int4,
         user_id -> Int4,
         found_at -> Timestamp,
