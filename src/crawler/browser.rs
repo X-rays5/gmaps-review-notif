@@ -1,3 +1,4 @@
+use std::ffi::OsStr;
 use std::ops::Deref;
 use std::sync::Arc;
 use std::time::Duration;
@@ -22,11 +23,22 @@ impl Deref for AutoClosableTab {
 }
 
 pub fn get(accept_terms: bool) -> Result<Browser>{
+    let mut chrome_args: Vec<&OsStr> = vec![
+        "--no-sandbox".as_ref(),
+        "--lang=en-US".as_ref(),
+    ];
+
+    // Windows headless is a bit wonky, so only use headless mode on non-Windows platforms
+    if !cfg!(windows) {
+        chrome_args.push("--headless".as_ref());
+        chrome_args.push("--disable-gpu".as_ref());
+        chrome_args.push("--disable-dev-shm-usage".as_ref());
+    }
+
     let browser = Browser::new(LaunchOptions{
         headless: false,
-        args: vec![
-            "--lang=en-US".to_string().as_ref(),
-        ],
+        window_size: Some((1920, 1080)),
+        args: chrome_args,
         ..Default::default()
     });
 

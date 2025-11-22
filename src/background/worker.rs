@@ -1,4 +1,4 @@
-use poise::serenity_prelude::{ChannelId, ExecuteWebhook, Http, Webhook, WebhookId};
+use poise::serenity_prelude as serenity;
 use crate::config::get_config;
 use crate::models::{Following, ReviewWithUser, User};
 use crate::{provider, utility};
@@ -31,13 +31,33 @@ pub fn check_for_new_reviews() {
 
 fn process_outdated_user_reviews(users: Vec<User>) {
     for user in users {
-        tracing::info!("Processing user with gmaps_id: {}", user.gmaps_id);
-        // Here you would add the logic to fetch and update the user's reviews
+        let review = match provider::review::get_latest_review_for_user(user.id) {
+            Some(r) => r,
+            None => {
+                tracing::info!("No reviews found for followed user with id: {}", user.id);
+                continue;
+            }
+        };
+
+        let followers = match following::get_followers_of_user(user.id) {
+            Ok(follows) => follows,
+            Err(e) => {
+                tracing::error!("Failed to get followings for user id {}: {}", user.id, e);
+                continue;
+            }
+        };
+
+        for follower in followers {
+            let review = review.clone();
+            tokio::task::spawn(async move {
+                notify_new_review(follower, review).await
+            });
+        }
     }
 }
 
 async fn notify_new_review(following: Following, review: ReviewWithUser) {
-    let http = Http::new(get_config().discord_token.as_str());
+    let http = serenity::Http::new(get_config().discord_token.as_str());
     let webhook_id = match ensure_webhook_exists(following.webhook_id.as_str(), following.channel_id.as_str(), &http).await {
         Some(id) => id,
         None => {
@@ -53,7 +73,7 @@ async fn notify_new_review(following: Following, review: ReviewWithUser) {
         }
     }
 
-    let webhook = match Webhook::from_id(&http, WebhookId::new(webhook_id.parse().unwrap())).await {
+    let webhook = match serenity::Webhook::from_id(&http, serenity::WebhookId::new(webhook_id.parse().unwrap())).await {
         Ok(wh) => wh,
         Err(e) => {
             tracing::error!("Failed to fetch webhook by ID {}: {}", webhook_id, e);
@@ -69,7 +89,7 @@ async fn notify_new_review(following: Following, review: ReviewWithUser) {
         }
     };
 
-    let webhook_message = ExecuteWebhook::new()
+    let webhook_message = serenity::ExecuteWebhook::new()
         .username(current_user.name.clone())
         .avatar_url(current_user.avatar_url().unwrap_or_default())
         .embed(utility::embed::get_review_embed(&review, following.original_text));
@@ -79,12 +99,22 @@ async fn notify_new_review(following: Following, review: ReviewWithUser) {
     }
 }
 
-async fn ensure_webhook_exists(webhook: &str, channel_id: &str, http: &Http) -> Option<String> {
-    let webhook_id = WebhookId::new(webhook.parse().unwrap());
+async fn ensure_webhook_exists(webhook: &str, channel_id: &str, http: &serenity::Http) -> Option<String> {
+    let webhook_id = serenity::WebhookId::new(webhook.parse().unwrap());
+
     match http.get_webhook(webhook_id).await {
         Ok(_) => Some(webhook.to_string()),
-        Err(_) => {
-            match http.create_webhook(ChannelId::new(channel_id.parse().unwrap()), &(), None).await {
+        Err(e) => {
+            if let serenity::Error::Http(http_err) = &e {
+                if let serenity::HttpError::UnsuccessfulRequest(resp) = http_err {
+                    if resp.status_code == 403 {
+                        tracing::error!("Missing permissions to access or create webhook in channel {}", channel_id);
+                        return None;
+                    }
+                }
+            }
+
+            match http.create_webhook(serenity::ChannelId::new(channel_id.parse().unwrap()), &(), None).await {
                 Ok(webhook) => Some(webhook.id.to_string()),
                 Err(e) => {
                     tracing::error!("Failed to create webhook: {}", e);

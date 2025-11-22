@@ -3,7 +3,7 @@ use chrono::NaiveDateTime;
 use diesel::prelude::*;
 
 // --- USER MODELS ---
-#[derive(Queryable, Selectable, Identifiable, Debug)]
+#[derive(Queryable, Selectable, Identifiable, Debug, Clone)]
 #[diesel(table_name = users)]
 #[diesel(check_for_backend(diesel::pg::Pg))]
 pub struct User {
@@ -21,7 +21,7 @@ pub struct NewUser {
 }
 
 // --- REVIEW MODELS ---
-#[derive(Queryable, Selectable, Identifiable, Associations, Debug)]
+#[derive(Queryable, Selectable, Identifiable, Associations, Debug, Clone)]
 #[diesel(belongs_to(User, foreign_key = user_id))]
 #[diesel(table_name = reviews)]
 #[diesel(check_for_backend(diesel::pg::Pg))]
@@ -46,7 +46,7 @@ pub struct NewReview {
     pub user_id: i32,
 }
 
-#[derive(Queryable, Debug)]
+#[derive(Queryable, Debug, Clone)]
 #[diesel(check_for_backend(diesel::pg::Pg))]
 pub struct ReviewWithUser {
     #[diesel(embed)]

@@ -31,10 +31,11 @@ async fn main() {
 
     init_db().await;
 
+    tokio::task::spawn(async move {
+        schedule_background_review_check().await;
+    });
+
     let discord_client = discord::builder::build(config::get_config().discord_token.clone()).await;
-
-    schedule_background_review_check().await;
-
     match discord_client {
         Ok(mut client) => {
             run_discord_client(&mut client).await;
@@ -66,7 +67,7 @@ async fn schedule_background_review_check() {
         tokio::task::spawn(async move {
             tracing::info!("Running startup review check...");
             worker::check_for_new_reviews();
-        });
+        }).await.expect("failed to run startup review check");
     }
 
     let job = match Job::new(get_config().new_review_fetch_interval.clone(), |_uuid, _l| {

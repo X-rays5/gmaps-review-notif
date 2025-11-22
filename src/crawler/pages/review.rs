@@ -30,8 +30,10 @@ pub fn get_latest_review_for_user(gmaps_user: User) -> Result<NewReview> {
 
     tracing::debug!("Got review for {}", review_url);
 
-    let review_text_element = tab.find_element_by_xpath(r#"//div[contains(@lang, "en")]/span"#)?;
-    let review_text = review_text_element.get_inner_text()?;
+    let review_text = match tab.find_element_by_xpath(r#"//div[contains(@lang, "en")]/span"#) {
+        Ok(elem) => elem.get_inner_text().unwrap_or_else(|_| "Review doesn't contain text".to_string()),
+        Err(_) => "Review doesn't contain text".to_string(),
+    };
     tracing::debug!("Retrieved review text element");
 
     let show_original_button = tab.find_element_by_xpath(r#"//button[contains(@role, "switch")]/span[contains(text(), "original")]"#);
@@ -40,12 +42,10 @@ pub fn get_latest_review_for_user(gmaps_user: User) -> Result<NewReview> {
             tracing::debug!("Found 'Show original' button, clicking to reveal original text");
             button.click()?;
             sleep(Duration::from_secs(1));
-            let original_review_text_element = match tab.find_element_by_xpath(r#"//button[contains(@role, "switch")]/span[contains(text(), "translation")]/../../..//div[@lang]/span"#) {
-                Ok(elem) => elem,
-                Err(e) => return Err(anyhow::anyhow!("Failed to find original review text element: {}", e)),
+            let original_review_text = match tab.find_element_by_xpath(r#"//button[contains(@role, "switch")]/span[contains(text(), "translation")]/../../..//div[@lang]/span"#) {
+                Ok(elem) => elem.get_inner_text().unwrap_or_else(|_| "Review doesn't contain text".to_string()),
+                Err(_) => "Review doesn't contain text".to_string(),
             };
-
-            let original_review_text = original_review_text_element.get_inner_text()?;
             Some(original_review_text)
         }
         Err(_) => None,

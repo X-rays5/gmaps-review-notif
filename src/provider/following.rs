@@ -8,26 +8,6 @@ use crate::schema::reviews;
 use crate::config::get_config;
 use chrono::Utc;
 
-pub fn get_all_followed_users() -> Result<Vec<User>> {
-    let mut conn = match get_connection() {
-        Some(c) => c,
-        None => {
-            return Err(anyhow::anyhow!("Failed to get DB connection"));
-        },
-    };
-
-    match following::table
-        .inner_join(users::table.on(users::id.eq(following::followed_user_id)))
-        .select(users::all_columns)
-        .load::<User>(&mut conn) {
-        Ok(users) => Ok(users),
-        Err(e) => {
-            tracing::error!("Failed to load followed users: {}", e);
-            Err(anyhow::anyhow!("Database query error: {}", e))
-        },
-    }
-}
-
 pub fn get_followed_users_with_old_reviews() -> Result<Vec<User>> {
     let mut conn = match get_connection() {
         Some(c) => c,
@@ -42,14 +22,36 @@ pub fn get_followed_users_with_old_reviews() -> Result<Vec<User>> {
 
     match following::table
         .inner_join(users::table.on(users::id.eq(following::followed_user_id)))
-        .inner_join(reviews::table.on(reviews::user_id.eq(users::id)))
-        .filter(reviews::found_at.lt(cutoff_time))
+        .left_join(reviews::table.on(reviews::user_id.eq(users::id)))
+        .filter(
+            reviews::found_at.lt(cutoff_time)
+                .or(reviews::found_at.is_null())
+        )
         .select(users::all_columns)
         .distinct()
         .load::<User>(&mut conn) {
         Ok(users) => Ok(users),
         Err(e) => {
             tracing::error!("Failed to load followed users with old reviews: {}", e);
+            Err(anyhow::anyhow!("Database query error: {}", e))
+        },
+    }
+}
+
+pub fn get_followers_of_user(user_id: i32) -> Result<Vec<Following>> {
+    let mut conn = match get_connection() {
+        Some(c) => c,
+        None => {
+            return Err(anyhow::anyhow!("Failed to get DB connection"));
+        },
+    };
+
+    match following::table
+        .filter(following::followed_user_id.eq(user_id))
+        .load::<Following>(&mut conn) {
+        Ok(followings) => Ok(followings),
+        Err(e) => {
+            tracing::error!("Failed to load followings for user {}: {}", user_id, e);
             Err(anyhow::anyhow!("Database query error: {}", e))
         },
     }
@@ -112,7 +114,7 @@ pub fn follow_user_in_channel(user_id: i32, channel: String, original_text: bool
         original_text,
         webhook_id: webhook
     };
-    
+
     match diesel::insert_into(following::table)
         .values(&new_following)
         .get_result::<Following>(&mut conn) {
