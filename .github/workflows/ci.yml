@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18-alpine
+        ports:
+          - 5432:5432
+        env:
+          POSTGRES_USER: testuser
+          POSTGRES_PASSWORD: verysecurepassword
+          POSTGRES_DB: testdb
+        options: >-
+          --health-cmd "pg_isready -U testuser -d testdb"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgres://testuser:verysecurepassword@localhost:5432/testdb
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Install Rust
+      uses: actions-rust/setup@v2
+      with:
+        rust-toolchain: stable
+
+    - name: Install Diesel CLI
+      run: cargo install diesel_cli --no-default-features --features postgres
+
+    - name: Wait for Postgres
+      run: |
+        until pg_isready -h localhost -p 5432 -U testuser; do
+          sleep 1
+        done
+
+    - name: Run Diesel migrations
+      run: diesel setup
+
+    - name: Build project
+      run: cargo build --verbose
