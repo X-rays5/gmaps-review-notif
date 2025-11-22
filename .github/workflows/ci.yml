@@ -56,7 +56,12 @@ jobs:
         key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-diesel-cli
 
     - name: Install Diesel CLI
-      run: cargo install diesel_cli --no-default-features --features postgres
+      run: |
+        if ! command -v diesel &> /dev/null; then
+          cargo install diesel_cli --no-default-features --features postgres
+        else
+          echo "Diesel CLI already installed (from cache)"
+        fi
 
     - name: Run Diesel migrations
       run: diesel setup
