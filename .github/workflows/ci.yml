@@ -39,12 +39,6 @@ jobs:
     - name: Install Diesel CLI
       run: cargo install diesel_cli --no-default-features --features postgres
 
-    - name: Wait for Postgres
-      run: |
-        until pg_isready -h localhost -p 5432 -U testuser; do
-          sleep 1
-        done
-
     - name: Run Diesel migrations
       run: diesel setup
 
