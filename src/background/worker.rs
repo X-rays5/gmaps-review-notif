@@ -31,10 +31,10 @@ pub fn check_for_new_reviews() {
 
 fn process_outdated_user_reviews(users: Vec<User>) {
     for user in users {
-        let review = match provider::review::get_latest_review_for_user(user.id) {
+        let review = match provider::review::get_new_review(user.id) {
             Some(r) => r,
             None => {
-                tracing::info!("No reviews found for followed user with id: {}", user.id);
+                tracing::info!("No new reviews found for followed user with id: {}", user.id);
                 continue;
             }
         };

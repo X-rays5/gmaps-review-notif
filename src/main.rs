@@ -67,11 +67,14 @@ async fn schedule_background_review_check() {
         tokio::task::spawn(async move {
             tracing::info!("Running startup review check...");
             worker::check_for_new_reviews();
+            tracing::info!("Finished startup review check.");
         }).await.expect("failed to run startup review check");
     }
 
     let job = match Job::new(get_config().new_review_fetch_interval.clone(), |_uuid, _l| {
+        tracing::info!("Starting scheduled review fetch...");
         worker::check_for_new_reviews();
+        tracing::info!("Finished scheduled review fetch.");
     }) {
         Ok(j) => j,
         Err(e) => {
