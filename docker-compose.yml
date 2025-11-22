@@ -30,7 +30,7 @@ services:
     environment:
       # Required environment variables - MUST be set
       DATABASE_URL: postgres://gmaps_user:gmaps_password@postgres:5432/gmaps_reviews
-      DISCORD_TOKEN: your_discord_token_here
+      DISCORD_TOKEN: REPLACE_WITH_YOUR_DISCORD_TOKEN
       
       # Optional configuration with defaults
       STAR_TEXT: ⭐

@@ -31,6 +31,8 @@ The CI/CD pipeline generates multiple Docker tags for each release:
 | `v1.2.3` | `v1.2.3`, `v1.2`, `v1`, `latest` |
 | `v2.0.0` | `v2.0.0`, `v2.0`, `v2`, `latest` |
 
+**Note:** The `latest` tag always points to the most recently published release. When `v2.0.0` is released, `latest` moves from `v1.2.3` to `v2.0.0`.
+
 **Recommendation:** Use semantic versioning (MAJOR.MINOR.PATCH) for all releases.
 
 ### Using Released Images
