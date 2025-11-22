@@ -36,6 +36,13 @@ jobs:
     - name: Install Rust
       uses: actions-rust-lang/setup-rust-toolchain@v1
 
+    - name: Cache cargo bin and registry
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/bin
+          ~/.cargo/registry
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-diesel-cli
     - name: Install Diesel CLI
       run: cargo install diesel_cli --no-default-features --features postgres
 
