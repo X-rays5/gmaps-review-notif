@@ -1,6 +1,6 @@
 use crate::discord::commands::{ack, CommandCtx};
-use anyhow::Result;
 use crate::provider;
+use anyhow::Result;
 
 /// Gets a list of users being followed in the current channel.
 #[poise::command(
@@ -9,19 +9,20 @@ use crate::provider;
     default_member_permissions = "MANAGE_WEBHOOKS",
     required_bot_permissions = "MANAGE_WEBHOOKS"
 )]
-pub async fn followed_command<U: Sync>(
-    ctx: CommandCtx<'_, U>,
-) -> Result<()> {
+pub async fn followed_command<U: Sync>(ctx: CommandCtx<'_, U>) -> Result<()> {
     ack(&ctx).await;
 
-    let users = match provider::following::get_users_followed_in_channel(ctx.channel_id().get().to_string()) {
+    let users = match provider::following::get_users_followed_in_channel(
+        ctx.channel_id().get().to_string(),
+    ) {
         Ok(u) => u,
         Err(e) => {
             ctx.send(
                 poise::CreateReply::default()
                     .content(format!("❌ Failed to retrieve followed users: {}", e))
-                    .ephemeral(true)
-            ).await?;
+                    .ephemeral(true),
+            )
+            .await?;
             return Ok(());
         }
     };
@@ -30,8 +31,9 @@ pub async fn followed_command<U: Sync>(
         ctx.send(
             poise::CreateReply::default()
                 .content("ℹ️ No users are currently being followed in this channel.")
-                .ephemeral(true)
-        ).await?;
+                .ephemeral(true),
+        )
+        .await?;
         return Ok(());
     }
 
@@ -42,8 +44,9 @@ pub async fn followed_command<U: Sync>(
     ctx.send(
         poise::CreateReply::default()
             .content(content)
-            .ephemeral(true)
-    ).await?;
+            .ephemeral(true),
+    )
+    .await?;
 
     Ok(())
 }

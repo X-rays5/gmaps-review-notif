@@ -13,8 +13,7 @@ use poise::CreateReply;
 )]
 pub async fn lookup_user<U: Sync>(
     ctx: CommandCtx<'_, U>,
-    #[description = "The ID of the user to look up"]
-    id: String,
+    #[description = "The ID of the user to look up"] id: String,
 ) -> Result<()> {
     ack(&ctx).await;
 
@@ -25,14 +24,16 @@ pub async fn lookup_user<U: Sync>(
                 .field("Name", user.name, false)
                 .field("GMaps ID", user.gmaps_id, false)
                 .color(0x00FF00);
-            ctx.send(CreateReply::default().embed(embed).ephemeral(true)).await?;
+            ctx.send(CreateReply::default().embed(embed).ephemeral(true))
+                .await?;
         }
         Err(e) => {
             ctx.send(
                 CreateReply::default()
                     .content(format!("❌ Failed to find user: {}", e))
-                    .ephemeral(true)
-            ).await?;
+                    .ephemeral(true),
+            )
+            .await?;
         }
     }
 

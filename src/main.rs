@@ -1,20 +1,20 @@
 extern crate core;
 
-use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
-use poise::serenity_prelude::Client;
-use tracing_subscriber::FmtSubscriber;
-use tokio_cron_scheduler::{Job, JobScheduler};
 use crate::background::worker;
 use crate::config::get_config;
 use crate::provider::db::DbProvider;
+use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
+use poise::serenity_prelude::Client;
+use tokio_cron_scheduler::{Job, JobScheduler};
+use tracing_subscriber::FmtSubscriber;
 
-mod discord;
+mod background;
+mod config;
 mod crawler;
-mod schema;
+mod discord;
 mod models;
 mod provider;
-mod config;
-mod background;
+mod schema;
 mod utility;
 
 pub const DIESEL_MIGRATIONS: EmbeddedMigrations = embed_migrations!();
@@ -68,17 +68,26 @@ async fn schedule_background_review_check() {
             tracing::info!("Running startup review check...");
             worker::check_for_new_reviews();
             tracing::info!("Finished startup review check.");
-        }).await.expect("failed to run startup review check");
+        })
+        .await
+        .expect("failed to run startup review check");
     }
 
-    let job = match Job::new(get_config().new_review_fetch_interval.clone(), |_uuid, _l| {
-        tracing::info!("Starting scheduled review fetch...");
-        worker::check_for_new_reviews();
-        tracing::info!("Finished scheduled review fetch.");
-    }) {
+    let job = match Job::new(
+        get_config().new_review_fetch_interval.clone(),
+        |_uuid, _l| {
+            tracing::info!("Starting scheduled review fetch...");
+            worker::check_for_new_reviews();
+            tracing::info!("Finished scheduled review fetch.");
+        },
+    ) {
         Ok(j) => j,
         Err(e) => {
-            tracing::error!("Failed to create scheduled job with schedule '{}': '{}'", get_config().new_review_fetch_interval.clone(), e);
+            tracing::error!(
+                "Failed to create scheduled job with schedule '{}': '{}'",
+                get_config().new_review_fetch_interval.clone(),
+                e
+            );
             return;
         }
     };

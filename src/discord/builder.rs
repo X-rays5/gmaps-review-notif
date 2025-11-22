@@ -12,7 +12,7 @@ pub async fn build(token: String) -> Result<serenity::Client> {
                 follow::follow_user(),
                 followed::followed_command(),
                 latest::latest_review(),
-                lookup::lookup_user()
+                lookup::lookup_user(),
             ],
             event_handler: |ctx, event, framework, data| {
                 Box::pin(async move {
@@ -26,7 +26,12 @@ pub async fn build(token: String) -> Result<serenity::Client> {
             Box::pin(async move {
                 poise::builtins::register_globally(ctx, &framework.options().commands).await?;
 
-                ctx.set_presence(Some(serenity::ActivityData::custom("Watching for Google Maps Reviews")), serenity::OnlineStatus::DoNotDisturb);
+                ctx.set_presence(
+                    Some(serenity::ActivityData::custom(
+                        "Watching for Google Maps Reviews",
+                    )),
+                    serenity::OnlineStatus::DoNotDisturb,
+                );
 
                 Ok(())
             })
@@ -34,11 +39,15 @@ pub async fn build(token: String) -> Result<serenity::Client> {
         .build();
 
     let client = serenity::ClientBuilder::new(&token, intents)
-        .framework(framework).await;
+        .framework(framework)
+        .await;
 
     match client {
         Ok(c) => Ok(c),
-        Err(e) => Err(Error::msg(format!("Failed to create Discord client: {}", e))),
+        Err(e) => Err(Error::msg(format!(
+            "Failed to create Discord client: {}",
+            e
+        ))),
     }
 }
 
@@ -51,7 +60,14 @@ fn log_interaction(
     if let serenity::FullEvent::InteractionCreate { interaction } = event {
         if interaction.kind() == InteractionType::Command {
             let interaction = interaction.as_command().unwrap();
-            tracing::info!("Slash command: user='{}({})', guild='{}', channel='{}', command='{}'", interaction.user.name, interaction.user.id, interaction.guild_id.unwrap().get(), interaction.channel.clone().unwrap().id.get(), interaction.data.name);
+            tracing::info!(
+                "Slash command: user='{}({})', guild='{}', channel='{}', command='{}'",
+                interaction.user.name,
+                interaction.user.id,
+                interaction.guild_id.unwrap().get(),
+                interaction.channel.clone().unwrap().id.get(),
+                interaction.data.name
+            );
         }
     }
 }

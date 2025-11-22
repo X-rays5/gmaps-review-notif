@@ -1,8 +1,8 @@
+use crate::config::get_config;
 use anyhow::{Error, Result};
 use diesel::pg::PgConnection;
 use diesel::r2d2::{self, ConnectionManager};
 use std::sync::OnceLock;
-use crate::config::get_config;
 
 pub type DbPool = r2d2::Pool<ConnectionManager<PgConnection>>;
 pub type DbConnection = r2d2::PooledConnection<ConnectionManager<PgConnection>>;

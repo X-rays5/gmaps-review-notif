@@ -1,10 +1,10 @@
 use crate::models::{NewReview, Review, ReviewWithUser, User};
 use crate::provider::db::DbConnection;
 use crate::provider::user;
+use crate::provider::user::gmaps_user_id_to_db_id;
 use crate::schema::reviews;
 use crate::schema::users;
 use diesel::prelude::*;
-use crate::provider::user::gmaps_user_id_to_db_id;
 
 pub fn get_latest_review_for_user_gmaps_id(gmaps_id: &str) -> Option<ReviewWithUser> {
     get_latest_review_for_user(gmaps_user_id_to_db_id(gmaps_id)?)
@@ -28,7 +28,7 @@ pub fn get_new_review(user_id: i32) -> Option<ReviewWithUser> {
                 Some(new_r) => new_r,
                 None => return None,
             }
-        },
+        }
         Some(ref r) => {
             let age_limit_hours = crate::config::get_config().review_age_limit_hours;
             let age_limit_duration = chrono::Duration::hours(age_limit_hours);
@@ -47,8 +47,9 @@ pub fn get_new_review(user_id: i32) -> Option<ReviewWithUser> {
     let old_review = old_review_opt.unwrap();
     if old_review.review.place_name != new_review.review.place_name
         && old_review.review.review_text != new_review.review.review_text
-        && old_review.review.stars != new_review.review.stars {
-            Some(new_review)
+        && old_review.review.stars != new_review.review.stars
+    {
+        Some(new_review)
     } else {
         None
     }

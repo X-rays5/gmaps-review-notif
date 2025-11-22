@@ -1,2 +1,2 @@
-mod commands;
 pub mod builder;
+mod commands;

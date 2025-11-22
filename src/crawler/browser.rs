@@ -1,8 +1,8 @@
+use anyhow::Result;
+use headless_chrome::{Browser, LaunchOptions};
 use std::ops::Deref;
 use std::sync::Arc;
 use std::time::Duration;
-use anyhow::Result;
-use headless_chrome::{Browser, LaunchOptions};
 
 pub struct AutoClosableTab {
     tab: Arc<headless_chrome::Tab>,
@@ -21,8 +21,8 @@ impl Deref for AutoClosableTab {
     }
 }
 
-pub fn get(accept_terms: bool) -> Result<Browser>{
-    let browser = Browser::new(LaunchOptions{
+pub fn get(accept_terms: bool) -> Result<Browser> {
+    let browser = Browser::new(LaunchOptions {
         headless: false,
         window_size: Some((1920, 1080)),
         args: vec![
@@ -39,7 +39,7 @@ pub fn get(accept_terms: bool) -> Result<Browser>{
                 accept_gmaps_terms(b.clone())?;
             }
             Ok(b)
-        },
+        }
         Err(e) => Err(anyhow::anyhow!("Failed to launch browser: {}", e)),
     }
 }
@@ -67,7 +67,10 @@ pub fn accept_gmaps_terms(browser: Browser) -> Result<()> {
             }
             Err(e) => {
                 if tab.get_url().contains("consent.google.com") {
-                    return Err(anyhow::anyhow!("Accept button not found on terms page: {}", e));
+                    return Err(anyhow::anyhow!(
+                        "Accept button not found on terms page: {}",
+                        e
+                    ));
                 } else {
                     break;
                 }
@@ -78,13 +81,20 @@ pub fn accept_gmaps_terms(browser: Browser) -> Result<()> {
     Ok(())
 }
 
-pub fn wait_for_url(tab: &headless_chrome::Tab, url_substring: &str, timeout_ms: u64) -> Result<()> {
+pub fn wait_for_url(
+    tab: &headless_chrome::Tab,
+    url_substring: &str,
+    timeout_ms: u64,
+) -> Result<()> {
     tracing::debug!("Waiting for URL: {}", url_substring);
     let start = std::time::Instant::now();
     while !tab.get_url().contains(url_substring) {
         if start.elapsed().as_millis() > timeout_ms as u128 {
             tracing::debug!("Current URL: {}", tab.get_url());
-            return Err(anyhow::anyhow!("Timeout waiting for URL containing: {}", url_substring));
+            return Err(anyhow::anyhow!(
+                "Timeout waiting for URL containing: {}",
+                url_substring
+            ));
         }
         std::thread::sleep(Duration::from_millis(100));
     }
@@ -93,13 +103,20 @@ pub fn wait_for_url(tab: &headless_chrome::Tab, url_substring: &str, timeout_ms:
     Ok(())
 }
 
-pub fn wait_for_url_regex(tab: &headless_chrome::Tab, url_pattern: &regex::Regex, timeout_ms: u64) -> Result<()> {
+pub fn wait_for_url_regex(
+    tab: &headless_chrome::Tab,
+    url_pattern: &regex::Regex,
+    timeout_ms: u64,
+) -> Result<()> {
     tracing::debug!("Waiting for URL matching pattern: {}", url_pattern.as_str());
     let start = std::time::Instant::now();
     while !url_pattern.is_match(&tab.get_url()) {
         if start.elapsed().as_millis() > timeout_ms as u128 {
             tracing::debug!("Current URL: {}", tab.get_url());
-            return Err(anyhow::anyhow!("Timeout waiting for URL matching pattern: {}", url_pattern.as_str()));
+            return Err(anyhow::anyhow!(
+                "Timeout waiting for URL matching pattern: {}",
+                url_pattern.as_str()
+            ));
         }
         std::thread::sleep(Duration::from_millis(100));
     }
@@ -111,9 +128,23 @@ pub fn wait_for_url_regex(tab: &headless_chrome::Tab, url_pattern: &regex::Regex
 pub fn wait_dom_ready(tab: &headless_chrome::Tab, timeout_ms: u64) -> Result<()> {
     tracing::debug!("Waiting for DOM ready");
     let start = std::time::Instant::now();
-    while !tab.evaluate("document.readyState", false)?.value.unwrap().as_str().unwrap().eq("complete") {
+    while !tab
+        .evaluate("document.readyState", false)?
+        .value
+        .unwrap()
+        .as_str()
+        .unwrap()
+        .eq("complete")
+    {
         if start.elapsed().as_millis() > timeout_ms as u128 {
-            tracing::debug!("Current readyState: {}", tab.evaluate("document.readyState", false)?.value.unwrap().as_str().unwrap());
+            tracing::debug!(
+                "Current readyState: {}",
+                tab.evaluate("document.readyState", false)?
+                    .value
+                    .unwrap()
+                    .as_str()
+                    .unwrap()
+            );
             return Err(anyhow::anyhow!("Timeout waiting for DOM ready"));
         }
         std::thread::sleep(Duration::from_millis(100));

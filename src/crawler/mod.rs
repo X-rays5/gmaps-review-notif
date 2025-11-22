@@ -1,2 +1,2 @@
-pub mod pages;
 mod browser;
+pub mod pages;
