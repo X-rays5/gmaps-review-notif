@@ -57,7 +57,7 @@ jobs:
 
     - name: Install Diesel CLI
       run: |
-        if ! command -v diesel &> /dev/null; then
+        if ! command -v diesel >/dev/null 2>&1; then
           cargo install diesel_cli --no-default-features --features postgres
         else
           echo "Diesel CLI already installed (from cache)"
