@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
+  diesel-migrations:
     runs-on: ubuntu-latest
     
     env:
@@ -17,7 +17,6 @@ jobs:
       POSTGRES_DB: testdb
       POSTGRES_HOST: localhost
       POSTGRES_PORT: 5432
-      RUSTFLAGS: "-A dead_code"
     
     services:
       postgres:
@@ -64,6 +63,19 @@ jobs:
 
     - name: Re-run migrations after rollback
       run: diesel migration run
+
+  build:
+    runs-on: ubuntu-latest
+    
+    env:
+      RUSTFLAGS: "-A dead_code"
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Install Rust
+      uses: actions-rust-lang/setup-rust-toolchain@v1
 
     - name: Build project
       run: cargo build --verbose
