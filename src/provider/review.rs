@@ -4,26 +4,34 @@ use crate::provider::user;
 use crate::schema::reviews;
 use crate::schema::users;
 use diesel::prelude::*;
+use crate::provider::user::gmaps_user_id_to_db_id;
 
-pub fn get_latest_review_for_user(gmaps_id: &str) -> Option<ReviewWithUser> {
-    match get_latest_review_from_db(gmaps_id) {
-        Some(r) => {
-            if (r.review.found_at + chrono::Duration::hours(1)).and_utc() < chrono::Utc::now() {
-                fetch_and_save_latest_review(gmaps_id)
-            } else {
-                Some(r)
-            }
+pub fn get_latest_review_for_user_gmaps_id(gmaps_id: &str) -> Option<ReviewWithUser> {
+    get_latest_review_for_user(gmaps_user_id_to_db_id(gmaps_id)?)
+}
+
+pub fn get_latest_review_for_user(user_id: i32) -> Option<ReviewWithUser> {
+    match get_latest_review_from_db(user_id) {
+        Some(review) => Some(review),
+        None => {
+            let user = match user::get_user_from_id(user_id) {
+                Ok(u) => u,
+                Err(e) => {
+                    tracing::error!("Failed to get user with id {}: {}", user_id, e);
+                    return None;
+                }
+            };
+            fetch_and_save_latest_review(user)
         }
-        None => fetch_and_save_latest_review(gmaps_id),
     }
 }
 
-fn get_latest_review_from_db(gmaps_id: &str) -> Option<ReviewWithUser> {
+fn get_latest_review_from_db(user_id: i32) -> Option<ReviewWithUser> {
     let mut conn = get_connection()?;
 
     users::table
         .inner_join(reviews::table)
-        .filter(users::gmaps_id.eq(gmaps_id))
+        .filter(users::id.eq(user_id))
         .order(reviews::found_at.desc())
         .select((User::as_select(), Review::as_select()))
         .first::<(User, Review)>(&mut conn)
@@ -31,16 +39,8 @@ fn get_latest_review_from_db(gmaps_id: &str) -> Option<ReviewWithUser> {
         .ok()
 }
 
-fn fetch_and_save_latest_review(gmaps_id: &str) -> Option<ReviewWithUser> {
-    let gmaps_user = match user::get_user_from_gmaps_id(gmaps_id.to_string()) {
-        Ok(u) => u,
-        Err(e) => {
-            tracing::error!("Failed to get user for gmaps_id {}: {}", gmaps_id, e);
-            return None;
-        }
-    };
-
-    let new_review = match crate::crawler::pages::review::get_latest_review_for_user(gmaps_user) {
+fn fetch_and_save_latest_review(user: User) -> Option<ReviewWithUser> {
+    let new_review = match crate::crawler::pages::review::get_latest_review_for_user(user) {
         Ok(r) => r,
         Err(e) => {
             tracing::error!("Failed to fetch latest review from Google Maps: {}", e);

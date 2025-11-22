@@ -17,8 +17,9 @@ CREATE TABLE reviews (
 CREATE TABLE following (
                            id SERIAL PRIMARY KEY,
                            followed_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                           guild_id VARCHAR(255) NOT NULL,
-                           channel_id VARCHAR(255) NOT NULL
+                           channel_id VARCHAR(255) NOT NULL,
+                           original_text BOOLEAN NOT NULL,
+                            webhook_id VARCHAR(20) NOT NULL
 );
 
 CREATE INDEX idx_following_followed_gmaps_id ON following(followed_user_id);

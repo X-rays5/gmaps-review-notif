@@ -5,9 +5,10 @@ diesel::table! {
         id -> Int4,
         followed_user_id -> Int4,
         #[max_length = 255]
-        guild_id -> Varchar,
-        #[max_length = 255]
         channel_id -> Varchar,
+        original_text -> Bool,
+        #[max_length = 20]
+        webhook_id -> Varchar,
     }
 }
 

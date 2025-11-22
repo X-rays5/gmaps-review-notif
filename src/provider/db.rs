@@ -1,8 +1,8 @@
 use anyhow::{Error, Result};
 use diesel::pg::PgConnection;
 use diesel::r2d2::{self, ConnectionManager};
-use std::env;
 use std::sync::OnceLock;
+use crate::config::get_config;
 
 pub type DbPool = r2d2::Pool<ConnectionManager<PgConnection>>;
 pub type DbConnection = r2d2::PooledConnection<ConnectionManager<PgConnection>>;
@@ -15,8 +15,7 @@ pub struct DbProvider {
 
 impl DbProvider {
     fn new() -> Self {
-        let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
-        let manager = ConnectionManager::<PgConnection>::new(database_url);
+        let manager = ConnectionManager::<PgConnection>::new(get_config().database_url.clone());
         let pool = r2d2::Pool::builder()
             .build(manager)
             .expect("Failed to create DB pool");
