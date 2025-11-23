@@ -15,23 +15,24 @@ jobs:
     uses: ./.github/workflows/diesel-test.yml
 
   build:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-latest
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
 
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
 
-    - name: Set up QEMU
-      uses: docker/setup-qemu-action@v3
-
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
-
     - name: Build Docker image
       uses: docker/build-push-action@v6
       with:
         context: .
-        platforms: linux/amd64
+        platforms: ${{ matrix.platform }}
         push: false
         cache-from: type=gha
         cache-to: type=gha,mode=max
