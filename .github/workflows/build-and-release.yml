@@ -99,6 +99,7 @@ jobs:
 
   build-and-push:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     needs: [determine-build-type, check-nightly-changes]
     if: |
       always() &&
@@ -157,13 +158,13 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # Nightly build: Use nightly-specific tags
+      # Nightly build: Use nightly-specific tags (amd64 only for faster builds)
       - name: Build and push Docker image (Nightly)
         if: needs.determine-build-type.outputs.is_nightly == 'true'
         uses: docker/build-push-action@v6
         with:
           context: .
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
           push: true
           tags: |
             ghcr.io/${{ steps.repo_name.outputs.lowercase }}:${{ needs.check-nightly-changes.outputs.nightly_version }}
