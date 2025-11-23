@@ -7,7 +7,7 @@ services:
       POSTGRES_PASSWORD: gmaps_password
       POSTGRES_DB: gmaps_reviews
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U gmaps_user -d gmaps_reviews"]
       interval: 10s
