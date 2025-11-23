@@ -24,7 +24,7 @@ permissions:
 
 jobs:
   determine-build-type:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     outputs:
       is_release: ${{ steps.check.outputs.is_release }}
       is_nightly: ${{ steps.check.outputs.is_nightly }}
