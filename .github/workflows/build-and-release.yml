@@ -93,7 +93,7 @@ jobs:
 
       - name: Set empty nightly_version when no changes
         if: steps.check_changes.outputs.has_changes != 'true'
-        id: set_empty_version
+        id: get_version
         run: |
           echo "nightly_version=" >> $GITHUB_OUTPUT
 
