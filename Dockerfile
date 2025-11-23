@@ -1,17 +1,40 @@
 # Diesel CLI builder stage
-FROM rust:1.91-trixie AS diesel-builder
+FROM rust:1.91-slim-trixie AS diesel-builder
 
 # Install PostgreSQL dev libraries needed for diesel_cli
 RUN apt-get update && apt-get install -y \
     libpq-dev \
+    pkg-config \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Diesel CLI with PostgreSQL support only
+# Install Diesel CLI with PostgreSQL support only using cache mounts
 # Using specific version for reproducibility
-RUN cargo install diesel_cli --version 2.3.0 --no-default-features --features postgres
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/usr/local/cargo/git \
+    cargo install diesel_cli --version 2.3.0 --no-default-features --features postgres
+
+# Cargo chef stage for recipe generation
+FROM rust:1.91-slim-trixie AS chef
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/usr/local/cargo/git \
+    cargo install cargo-chef --locked
+WORKDIR /app
+
+# Generate cargo-chef recipe
+FROM chef AS planner
+COPY . .
+RUN cargo chef prepare --recipe-path recipe.json
 
 # Application builder stage
-FROM rust:1.91-trixie AS builder
+FROM rust:1.91-slim-trixie AS builder
+
+# Install sccache for compilation caching
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/usr/local/cargo/git \
+    cargo install sccache --locked
+
+# Set up sccache as the compiler wrapper
+ENV RUSTC_WRAPPER=/usr/local/cargo/bin/sccache
 
 # Install build dependencies including PostgreSQL development libraries
 RUN apt-get update && apt-get install -y \
@@ -21,26 +44,32 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-# Copy manifests first for better layer caching
-COPY Cargo.toml Cargo.lock ./
-COPY build.rs ./
+# Copy cargo-chef recipe
+COPY --from=planner /app/recipe.json recipe.json
 
-# Create a dummy main.rs to build dependencies separately (for better caching)
-RUN mkdir src && echo "fn main() {}" > src/main.rs
-
-# Build dependencies first (this layer will be cached if Cargo.toml doesn't change)
-RUN cargo build --release && rm -rf src
+# Build dependencies using cargo-chef - this is the caching Docker layer!
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/usr/local/cargo/git \
+    --mount=type=cache,target=/app/target \
+    --mount=type=cache,target=/root/.cache/sccache \
+    cargo chef cook --release --recipe-path recipe.json
 
 # Copy actual source code and migrations
 COPY src ./src
 COPY migrations ./migrations
 COPY diesel.toml ./
+COPY Cargo.toml Cargo.lock build.rs ./
 
 # Build the application in release mode with the actual source
-RUN cargo build --release
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/usr/local/cargo/git \
+    --mount=type=cache,target=/app/target \
+    --mount=type=cache,target=/root/.cache/sccache \
+    cargo build --release && \
+    cp /app/target/release/gmaps_review_notif /usr/local/bin/
 
 # Runtime stage
-FROM debian:bookworm-slim
+FROM debian:trixie-slim
 
 # Install runtime dependencies for PostgreSQL client, Chrome headless, and Diesel
 RUN apt-get update && apt-get install -y \
@@ -74,8 +103,8 @@ RUN apt-get update && apt-get install -y \
 # Copy Diesel CLI from diesel-builder stage
 COPY --from=diesel-builder /usr/local/cargo/bin/diesel /usr/local/bin/diesel
 
-# Copy the built application
-COPY --from=builder /app/target/release/gmaps_review_notif /usr/local/bin/gmaps_review_notif
+# Copy the built application (already copied to /usr/local/bin in builder stage)
+COPY --from=builder /usr/local/bin/gmaps_review_notif /usr/local/bin/gmaps_review_notif
 
 # Copy migrations for Diesel
 COPY --from=builder /app/migrations /app/migrations

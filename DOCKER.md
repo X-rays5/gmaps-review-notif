@@ -63,10 +63,23 @@ app:
     dockerfile: Dockerfile
 ```
 
-Or build manually:
+Or build manually with BuildKit (recommended for optimal caching):
 ```bash
-docker build -t gmaps-review-notif:custom .
+DOCKER_BUILDKIT=1 docker build -t gmaps-review-notif:custom .
 ```
+
+> [!NOTE]
+> The Dockerfile uses BuildKit features including cache mounts for optimal build performance. BuildKit is enabled by default in Docker 23.0+. For older versions, set `DOCKER_BUILDKIT=1` explicitly.
+
+#### Build Optimizations
+
+The Dockerfile includes several optimizations for faster builds:
+- **cargo-chef**: Smart dependency caching that works correctly with workspace dependencies
+- **sccache**: Compilation caching to speed up incremental builds
+- **BuildKit cache mounts**: Persistent caches for cargo registry and build artifacts across builds
+- **Slim base images**: Faster downloads using `rust:1.91-slim-trixie`
+
+These optimizations significantly reduce build times, especially on CI/CD pipelines and when building repeatedly during development.
 
 ## Troubleshooting
 
