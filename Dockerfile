@@ -5,6 +5,7 @@ FROM rust:1.91-slim-trixie AS diesel-builder
 RUN apt-get update && apt-get install -y \
     libpq-dev \
     pkg-config \
+    libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Diesel CLI with PostgreSQL support only using cache mounts
@@ -15,6 +16,13 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
 
 # Cargo chef stage for recipe generation
 FROM rust:1.91-slim-trixie AS chef
+
+# Install dependencies needed for cargo-chef compilation
+RUN apt-get update && apt-get install -y \
+    pkg-config \
+    libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
+
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
     cargo install cargo-chef --locked
@@ -28,6 +36,14 @@ RUN cargo chef prepare --recipe-path recipe.json
 # Application builder stage
 FROM rust:1.91-slim-trixie AS builder
 
+# Install build dependencies including PostgreSQL development libraries
+# These are needed for both sccache compilation and the application build
+RUN apt-get update && apt-get install -y \
+    libpq-dev \
+    pkg-config \
+    libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
+
 # Install sccache for compilation caching
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
@@ -35,12 +51,6 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
 
 # Set up sccache as the compiler wrapper
 ENV RUSTC_WRAPPER=/usr/local/cargo/bin/sccache
-
-# Install build dependencies including PostgreSQL development libraries
-RUN apt-get update && apt-get install -y \
-    libpq-dev \
-    pkg-config \
-    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
