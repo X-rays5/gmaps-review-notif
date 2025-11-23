@@ -51,7 +51,7 @@ jobs:
     if: needs.determine-build-type.outputs.is_nightly == 'true'
     outputs:
       has_changes: ${{ steps.check_changes.outputs.has_changes }}
-      nightly_version: ${{ steps.get_version.outputs.nightly_version }}
+      nightly_version: ${{ steps.get_version.outputs.nightly_version || steps.set_empty_version.outputs.nightly_version }}
 
     steps:
       - name: Checkout repository
@@ -93,7 +93,7 @@ jobs:
 
       - name: Set empty nightly_version when no changes
         if: steps.check_changes.outputs.has_changes != 'true'
-        id: get_version
+        id: set_empty_version
         run: |
           echo "nightly_version=" >> $GITHUB_OUTPUT
 
