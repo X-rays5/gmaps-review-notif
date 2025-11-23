@@ -52,21 +52,30 @@ docker pull ghcr.io/x-rays5/gmaps-review-notif:latest
 ### CI Workflow (`ci.yml`)
 
 Runs on every push and pull request to `main`:
-- Tests Diesel migrations (setup, run, rollback, re-run)
-- Builds the project
-- Validates code compiles successfully
+- Calls the reusable `diesel-test.yml` workflow to test Diesel migrations
+- Builds the Docker image to validate it compiles successfully
 
-### Docker Build and Publish Workflow (`docker-publish.yml`)
+### Diesel Test Workflow (`diesel-test.yml`)
 
+Reusable workflow for testing Diesel migrations:
+- Sets up PostgreSQL service
+- Installs Diesel CLI
+- Tests migrations: setup, run, rollback, and re-run
+- Can be called from any workflow that needs database migration testing
+
+### Build and Release Workflow (`build-and-release.yml`)
+
+Unified workflow that handles both releases and nightly builds:
+
+#### Release Mode
 Triggers on version tag pushes (e.g., `v1.0.0`):
-- Sets up QEMU for multi-architecture builds
-- Builds Docker images for `linux/amd64` and `linux/arm64`
-- Pushes to GitHub Container Registry
+- Automatically detects release build from tag push
+- Builds multi-architecture Docker images (`linux/amd64` and `linux/arm64`)
+- Pushes to GitHub Container Registry with semantic versioning tags
 - Creates GitHub release with automatic release notes
 
-### Nightly Release Workflow (`nightly-release.yml`)
-
-Runs daily at 2 AM UTC to create nightly builds:
+#### Nightly Mode
+Runs daily at 2 AM UTC (or via manual trigger):
 - Checks for commits since the last nightly release
 - Only builds if there are new changes
 - Extracts version from `Cargo.toml`
@@ -83,6 +92,8 @@ Or pull a specific nightly version:
 ```bash
 docker pull ghcr.io/x-rays5/gmaps-review-notif:0.1.0-nightly-20231123
 ```
+
+**Note:** The workflow uses a unified `build-and-push` job with conditional steps that execute based on the build type (release vs nightly). All Docker setup steps (QEMU, Buildx, login) are shared, while build-specific steps (metadata extraction, tagging, release creation) run conditionally using `if:` expressions. This approach eliminates code duplication between release and nightly builds.
 
 ## Manual Release Steps
 
