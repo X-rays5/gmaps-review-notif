@@ -90,16 +90,24 @@ jobs:
           echo "nightly_version=$NIGHTLY_VERSION" >> $GITHUB_OUTPUT
           echo "Nightly version will be: $NIGHTLY_VERSION"
 
-  build-release:
+  build-and-push:
     runs-on: ubuntu-latest
-    needs: [determine-build-type]
-    if: needs.determine-build-type.outputs.is_release == 'true'
+    needs: [determine-build-type, check-nightly-changes]
+    if: |
+      (needs.determine-build-type.outputs.is_release == 'true') ||
+      (needs.determine-build-type.outputs.is_nightly == 'true' && needs.check-nightly-changes.outputs.has_changes == 'true')
+
+    strategy:
+      matrix:
+        build_type: [release, nightly]
+        exclude:
+          - build_type: ${{ needs.determine-build-type.outputs.is_release == 'true' && 'nightly' || 'release' }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: ${{ matrix.build_type == 'release' && 0 || 1 }}
 
       # QEMU enables building for multiple CPU architectures (arm64, amd64, etc.)
       # Required for cross-platform Docker image builds
@@ -116,7 +124,9 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # Release-specific: Extract metadata for Docker tags
       - name: Extract metadata (tags, labels) for Docker
+        if: matrix.build_type == 'release'
         id: meta
         uses: docker/metadata-action@v5
         with:
@@ -127,7 +137,9 @@ jobs:
             type=semver,pattern={{major}}
             type=raw,value=latest
 
-      - name: Build and push Docker image
+      # Release build: Use metadata action tags
+      - name: Build and push Docker image (Release)
+        if: matrix.build_type == 'release'
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -138,7 +150,25 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      # Nightly build: Use nightly-specific tags
+      - name: Build and push Docker image (Nightly)
+        if: matrix.build_type == 'nightly'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}:${{ needs.check-nightly-changes.outputs.nightly_version }}
+            ghcr.io/${{ github.repository }}:nightly
+          labels: |
+            org.opencontainers.image.version=${{ needs.check-nightly-changes.outputs.nightly_version }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Release-specific: Create GitHub Release
       - name: Create GitHub Release
+        if: matrix.build_type == 'release'
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
@@ -161,43 +191,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  build-nightly:
-    runs-on: ubuntu-latest
-    needs: [determine-build-type, check-nightly-changes]
-    if: needs.determine-build-type.outputs.is_nightly == 'true' && needs.check-nightly-changes.outputs.has_changes == 'true'
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: |
-            ghcr.io/${{ github.repository }}:${{ needs.check-nightly-changes.outputs.nightly_version }}
-            ghcr.io/${{ github.repository }}:nightly
-          labels: |
-            org.opencontainers.image.version=${{ needs.check-nightly-changes.outputs.nightly_version }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
+      # Nightly-specific: Create nightly tag
       - name: Create nightly tag
+        if: matrix.build_type == 'nightly'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
