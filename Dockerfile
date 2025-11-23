@@ -1,5 +1,5 @@
 # Diesel CLI builder stage
-FROM rust:1.83-bookworm AS diesel-builder
+FROM rust:1.85-bookworm AS diesel-builder
 
 # Install PostgreSQL dev libraries needed for diesel_cli
 RUN apt-get update && apt-get install -y \
@@ -11,7 +11,7 @@ RUN apt-get update && apt-get install -y \
 RUN cargo install diesel_cli --version 2.3.0 --no-default-features --features postgres
 
 # Application builder stage
-FROM rust:1.83-bookworm AS builder
+FROM rust:1.85-bookworm AS builder
 
 # Install build dependencies including PostgreSQL development libraries
 RUN apt-get update && apt-get install -y \
