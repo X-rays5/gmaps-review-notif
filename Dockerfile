@@ -66,7 +66,10 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/app/target \
     --mount=type=cache,target=/root/.cache/sccache \
     cargo build --release && \
-    cp /app/target/release/gmaps_review_notif /usr/local/bin/
+    cp /app/target/release/gmaps_review_notif /tmp/gmaps_review_notif
+
+# Copy binary from temp location to final location (separate layer to persist after cache unmount)
+RUN cp /tmp/gmaps_review_notif /usr/local/bin/gmaps_review_notif && chmod +x /usr/local/bin/gmaps_review_notif
 
 # Runtime stage
 FROM debian:trixie-slim
@@ -103,7 +106,7 @@ RUN apt-get update && apt-get install -y \
 # Copy Diesel CLI from diesel-builder stage
 COPY --from=diesel-builder /usr/local/cargo/bin/diesel /usr/local/bin/diesel
 
-# Copy the built application (already copied to /usr/local/bin in builder stage)
+# Copy the built application from builder stage
 COPY --from=builder /usr/local/bin/gmaps_review_notif /usr/local/bin/gmaps_review_notif
 
 # Copy migrations for Diesel
