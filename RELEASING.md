@@ -93,7 +93,7 @@ Or pull a specific nightly version:
 docker pull ghcr.io/x-rays5/gmaps-review-notif:0.1.0-nightly-20231123
 ```
 
-**Note:** The workflow uses conditional job execution to run either release or nightly build logic based on the trigger type, eliminating code duplication between the two build types.
+**Note:** The workflow uses a unified `build-and-push` job with conditional steps that execute based on the build type (release vs nightly). All Docker setup steps (QEMU, Buildx, login) are shared, while build-specific steps (metadata extraction, tagging, release creation) run conditionally using `if:` expressions. This approach eliminates code duplication between release and nightly builds.
 
 ## Manual Release Steps
 

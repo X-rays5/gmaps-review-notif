@@ -32,6 +32,7 @@ jobs:
     steps:
       - name: Determine build type
         id: check
+        shell: bash
         run: |
           if [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == "refs/tags/v"* ]]; then
             echo "is_release=true" >> $GITHUB_OUTPUT
@@ -89,6 +90,12 @@ jobs:
           NIGHTLY_VERSION="${VERSION}-nightly-${DATE}"
           echo "nightly_version=$NIGHTLY_VERSION" >> $GITHUB_OUTPUT
           echo "Nightly version will be: $NIGHTLY_VERSION"
+
+      - name: Set empty nightly_version when no changes
+        if: steps.check_changes.outputs.has_changes != 'true'
+        id: set_empty_version
+        run: |
+          echo "nightly_version=" >> $GITHUB_OUTPUT
 
   build-and-push:
     runs-on: ubuntu-latest
