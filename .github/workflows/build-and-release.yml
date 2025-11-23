@@ -97,17 +97,11 @@ jobs:
       (needs.determine-build-type.outputs.is_release == 'true') ||
       (needs.determine-build-type.outputs.is_nightly == 'true' && needs.check-nightly-changes.outputs.has_changes == 'true')
 
-    strategy:
-      matrix:
-        build_type: [release, nightly]
-        exclude:
-          - build_type: ${{ needs.determine-build-type.outputs.is_release == 'true' && 'nightly' || 'release' }}
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: ${{ matrix.build_type == 'release' && 0 || 1 }}
+          fetch-depth: ${{ needs.determine-build-type.outputs.is_release == 'true' && '0' || '1' }}
 
       # QEMU enables building for multiple CPU architectures (arm64, amd64, etc.)
       # Required for cross-platform Docker image builds
@@ -126,7 +120,7 @@ jobs:
 
       # Release-specific: Extract metadata for Docker tags
       - name: Extract metadata (tags, labels) for Docker
-        if: matrix.build_type == 'release'
+        if: needs.determine-build-type.outputs.is_release == 'true'
         id: meta
         uses: docker/metadata-action@v5
         with:
@@ -139,7 +133,7 @@ jobs:
 
       # Release build: Use metadata action tags
       - name: Build and push Docker image (Release)
-        if: matrix.build_type == 'release'
+        if: needs.determine-build-type.outputs.is_release == 'true'
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -152,7 +146,7 @@ jobs:
 
       # Nightly build: Use nightly-specific tags
       - name: Build and push Docker image (Nightly)
-        if: matrix.build_type == 'nightly'
+        if: needs.determine-build-type.outputs.is_nightly == 'true'
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -168,7 +162,7 @@ jobs:
 
       # Release-specific: Create GitHub Release
       - name: Create GitHub Release
-        if: matrix.build_type == 'release'
+        if: needs.determine-build-type.outputs.is_release == 'true'
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
@@ -193,7 +187,7 @@ jobs:
 
       # Nightly-specific: Create nightly tag
       - name: Create nightly tag
-        if: matrix.build_type == 'nightly'
+        if: needs.determine-build-type.outputs.is_nightly == 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
