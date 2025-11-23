@@ -53,7 +53,7 @@ Database URL format: `postgres://user:password@host:port/database`
 
 For local development:
 
-1. Install Rust 1.85+, PostgreSQL 18, and Diesel CLI
+1. Install Rust 1.91+, PostgreSQL 18, and Diesel CLI
 2. Create a `.env` file with your configuration (you can copy `.env.example` as a starting point):
    ```env
    DATABASE_URL=postgres://user:password@localhost/dbname
