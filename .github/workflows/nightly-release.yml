@@ -81,7 +81,6 @@ jobs:
             ghcr.io/${{ github.repository }}:nightly
           labels: |
             org.opencontainers.image.version=${{ steps.get_version.outputs.nightly_version }}
-            org.opencontainers.image.created=${{ github.event.repository.updated_at }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
