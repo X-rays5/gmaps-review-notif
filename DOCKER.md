@@ -21,7 +21,8 @@ This will:
 4. Run database migrations automatically
 5. Start the bot
 
-**Note:** Edit the `DISCORD_TOKEN` value in `docker-compose.yml` before starting.
+> [!IMPORTANT]
+> Edit the `DISCORD_TOKEN` value in `docker-compose.yml` before starting.
 
 ### Verify Deployment
 
@@ -113,12 +114,14 @@ To rollback to a previous version:
    docker-compose up -d
    ```
 
-Note: Database migrations are not automatically rolled back. You'll need to manually revert them:
+> [!NOTE]
+> Database migrations are not automatically rolled back. You'll need to manually revert them:
 ```bash
 docker-compose exec app diesel migration revert
 ```
 
-**Warning:** Reverting migrations may cause data loss if the migrations contain destructive operations (e.g., dropping columns or tables).
+> [!CAUTION]
+> Reverting migrations may cause data loss if the migrations contain destructive operations (e.g., dropping columns or tables).
 
 ## Multi-Architecture Support
 
