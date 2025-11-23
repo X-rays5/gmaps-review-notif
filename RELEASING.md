@@ -52,21 +52,30 @@ docker pull ghcr.io/x-rays5/gmaps-review-notif:latest
 ### CI Workflow (`ci.yml`)
 
 Runs on every push and pull request to `main`:
-- Tests Diesel migrations (setup, run, rollback, re-run)
-- Builds the project
-- Validates code compiles successfully
+- Calls the reusable `diesel-test.yml` workflow to test Diesel migrations
+- Builds the Docker image to validate it compiles successfully
 
-### Docker Build and Publish Workflow (`docker-publish.yml`)
+### Diesel Test Workflow (`diesel-test.yml`)
 
+Reusable workflow for testing Diesel migrations:
+- Sets up PostgreSQL service
+- Installs Diesel CLI
+- Tests migrations: setup, run, rollback, and re-run
+- Can be called from any workflow that needs database migration testing
+
+### Build and Release Workflow (`build-and-release.yml`)
+
+Unified workflow that handles both releases and nightly builds:
+
+#### Release Mode
 Triggers on version tag pushes (e.g., `v1.0.0`):
-- Sets up QEMU for multi-architecture builds
-- Builds Docker images for `linux/amd64` and `linux/arm64`
-- Pushes to GitHub Container Registry
+- Automatically detects release build from tag push
+- Builds multi-architecture Docker images (`linux/amd64` and `linux/arm64`)
+- Pushes to GitHub Container Registry with semantic versioning tags
 - Creates GitHub release with automatic release notes
 
-### Nightly Release Workflow (`nightly-release.yml`)
-
-Runs daily at 2 AM UTC to create nightly builds:
+#### Nightly Mode
+Runs daily at 2 AM UTC (or via manual trigger):
 - Checks for commits since the last nightly release
 - Only builds if there are new changes
 - Extracts version from `Cargo.toml`
@@ -83,6 +92,8 @@ Or pull a specific nightly version:
 ```bash
 docker pull ghcr.io/x-rays5/gmaps-review-notif:0.1.0-nightly-20231123
 ```
+
+**Note:** The workflow uses conditional job execution to run either release or nightly build logic based on the trigger type, eliminating code duplication between the two build types.
 
 ## Manual Release Steps
 
