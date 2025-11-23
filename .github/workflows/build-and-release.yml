@@ -33,7 +33,7 @@ jobs:
       - name: Determine build type
         id: check
         run: |
-          if [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == refs/tags/v* ]]; then
+          if [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == "refs/tags/v"* ]]; then
             echo "is_release=true" >> $GITHUB_OUTPUT
             echo "is_nightly=false" >> $GITHUB_OUTPUT
           elif [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ github.event.inputs.release_type }}" == "release" ]]; then
@@ -69,7 +69,7 @@ jobs:
             echo "has_changes=true" >> $GITHUB_OUTPUT
           else
             # Check if there are commits since the last nightly tag
-            COMMITS_SINCE=$(git rev-list ${LATEST_NIGHTLY}..HEAD --count)
+            COMMITS_SINCE=$(git rev-list "${LATEST_NIGHTLY}"..HEAD --count)
 
             if [ "$COMMITS_SINCE" -gt 0 ]; then
               echo "Found $COMMITS_SINCE commits since last nightly"
@@ -164,9 +164,7 @@ jobs:
   build-nightly:
     runs-on: ubuntu-latest
     needs: [determine-build-type, check-nightly-changes]
-    if: |
-      needs.determine-build-type.outputs.is_nightly == 'true' &&
-      needs.check-nightly-changes.outputs.has_changes == 'true'
+    if: needs.determine-build-type.outputs.is_nightly == 'true' && needs.check-nightly-changes.outputs.has_changes == 'true'
 
     steps:
       - name: Checkout repository
