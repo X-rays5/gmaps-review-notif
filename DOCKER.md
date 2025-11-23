@@ -98,6 +98,28 @@ docker-compose exec app diesel migration revert
 docker-compose exec app diesel migration run
 ```
 
+## Rollback
+
+To rollback to a previous version:
+
+1. Update docker-compose.yml to use the specific version tag:
+   ```yaml
+   image: ghcr.io/x-rays5/gmaps-review-notif:v1.0.0
+   ```
+
+2. Restart services:
+   ```bash
+   docker-compose pull
+   docker-compose up -d
+   ```
+
+Note: Database migrations are not automatically rolled back. You'll need to manually revert them:
+```bash
+docker-compose exec app diesel migration revert
+```
+
+**Warning:** Reverting migrations may cause data loss if the migrations contain destructive operations (e.g., dropping columns or tables).
+
 ## Multi-Architecture Support
 
 The published images support:

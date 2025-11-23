@@ -64,6 +64,26 @@ Triggers on version tag pushes (e.g., `v1.0.0`):
 - Pushes to GitHub Container Registry
 - Creates GitHub release with automatic release notes
 
+### Nightly Release Workflow (`nightly-release.yml`)
+
+Runs daily at 2 AM UTC to create nightly builds:
+- Checks for commits since the last nightly release
+- Only builds if there are new changes
+- Extracts version from `Cargo.toml`
+- Creates versioned tag: `{version}-nightly-YYYYMMDD` (e.g., `0.1.0-nightly-20231123`)
+- Publishes Docker images with both versioned tag and `nightly` tag
+- Supports multi-architecture builds (linux/amd64 and linux/arm64)
+
+To use nightly releases:
+```bash
+docker pull ghcr.io/x-rays5/gmaps-review-notif:nightly
+```
+
+Or pull a specific nightly version:
+```bash
+docker pull ghcr.io/x-rays5/gmaps-review-notif:0.1.0-nightly-20231123
+```
+
 ## Manual Release Steps
 
 If you need to create a release manually:
@@ -87,25 +107,3 @@ Before creating a release:
 - [ ] Version number in `Cargo.toml` matches the tag (e.g., tag `v1.0.0` should have version `1.0.0` in Cargo.toml)
 - [ ] Version follows semantic versioning
 - [ ] Database migrations tested
-
-## Rollback
-
-To rollback to a previous version:
-
-1. Update docker-compose.yml to use the specific version tag:
-   ```yaml
-   image: ghcr.io/x-rays5/gmaps-review-notif:v1.0.0
-   ```
-
-2. Restart services:
-   ```bash
-   docker-compose pull
-   docker-compose up -d
-   ```
-
-Note: Database migrations are not automatically rolled back. You'll need to manually revert them:
-```bash
-docker-compose exec app diesel migration revert
-```
-
-**Warning:** Reverting migrations may cause data loss if the migrations contain destructive operations (e.g., dropping columns or tables).
