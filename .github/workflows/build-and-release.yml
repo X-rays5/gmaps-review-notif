@@ -99,7 +99,6 @@ jobs:
 
   build-and-push:
     runs-on: ubuntu-latest
-    timeout-minutes: ${{ needs.determine-build-type.outputs.is_release == 'true' && 120 || 60 }}
     needs: [determine-build-type, check-nightly-changes]
     if: |
       always() &&
@@ -159,14 +158,12 @@ jobs:
           cache-to: type=gha,mode=max
 
       # Nightly build: Use nightly-specific tags
-      # Note: Nightly builds use amd64 only for faster build times (vs. multi-arch for releases)
-      # Users on ARM64 should use official releases for full platform support
       - name: Build and push Docker image (Nightly)
         if: needs.determine-build-type.outputs.is_nightly == 'true'
         uses: docker/build-push-action@v6
         with:
           context: .
-          platforms: linux/amd64
+          platforms: linux/amd64,linux/arm64
           push: true
           tags: |
             ghcr.io/${{ steps.repo_name.outputs.lowercase }}:${{ needs.check-nightly-changes.outputs.nightly_version }}
