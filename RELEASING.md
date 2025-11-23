@@ -107,3 +107,5 @@ Note: Database migrations are not automatically rolled back. You'll need to manu
 ```bash
 docker-compose exec app diesel migration revert
 ```
+
+**Warning:** Reverting migrations may cause data loss if the migrations contain destructive operations (e.g., dropping columns or tables).

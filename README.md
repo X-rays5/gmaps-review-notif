@@ -46,7 +46,6 @@ Database URL format: `postgres://user:password@host:port/database`
 - **Database:** PostgreSQL with Diesel ORM
 - **Discord:** poise framework
 - **Web Scraping:** headless_chrome
-- **Scheduling:** tokio-cron-scheduler
 
 ## Development
 
@@ -55,7 +54,7 @@ Database URL format: `postgres://user:password@host:port/database`
 For local development:
 
 1. Install Rust 1.83+, PostgreSQL 18, and Diesel CLI
-2. Create a `.env` file with your configuration:
+2. Create a `.env` file with your configuration (you can copy `.env.example` as a starting point):
    ```env
    DATABASE_URL=postgres://user:password@localhost/dbname
    DISCORD_TOKEN=your_token_here
