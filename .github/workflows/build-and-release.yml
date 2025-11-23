@@ -111,6 +111,11 @@ jobs:
         with:
           fetch-depth: ${{ needs.determine-build-type.outputs.is_release == 'true' && '0' || '1' }}
 
+      - name: Convert repository name to lowercase
+        id: repo_name
+        run: |
+          echo "lowercase=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+
       # QEMU enables building for multiple CPU architectures (arm64, amd64, etc.)
       # Required for cross-platform Docker image builds
       - name: Set up QEMU
@@ -132,7 +137,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ github.repository }}
+          images: ghcr.io/${{ steps.repo_name.outputs.lowercase }}
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
@@ -161,8 +166,8 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
-            ghcr.io/${{ github.repository }}:${{ needs.check-nightly-changes.outputs.nightly_version }}
-            ghcr.io/${{ github.repository }}:nightly
+            ghcr.io/${{ steps.repo_name.outputs.lowercase }}:${{ needs.check-nightly-changes.outputs.nightly_version }}
+            ghcr.io/${{ steps.repo_name.outputs.lowercase }}:nightly
           labels: |
             org.opencontainers.image.version=${{ needs.check-nightly-changes.outputs.nightly_version }}
           cache-from: type=gha
@@ -179,12 +184,12 @@ jobs:
 
             Pull the image with:
             ```bash
-            docker pull ghcr.io/${{ github.repository }}:${{ github.ref_name }}
+            docker pull ghcr.io/${{ steps.repo_name.outputs.lowercase }}:${{ github.ref_name }}
             ```
 
             Or use the latest tag:
             ```bash
-            docker pull ghcr.io/${{ github.repository }}:latest
+            docker pull ghcr.io/${{ steps.repo_name.outputs.lowercase }}:latest
             ```
 
             ## Usage
