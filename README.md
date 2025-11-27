@@ -28,15 +28,17 @@ The bot will automatically set up the database, run migrations, and start monito
 
 The bot is configured via environment variables:
 
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `DISCORD_TOKEN` | **Yes** | - | Your Discord bot token |
-| `DATABASE_URL` | **Yes** | - | PostgreSQL connection string |
-| `STAR_TEXT` | No | ⭐ | Text to use for star ratings |
-| `FETCH_REVIEWS_ON_STARTUP` | No | `true` | Fetch reviews when bot starts |
-| `NEW_REVIEW_FETCH_INTERVAL` | No | `0 0 */6 * * *` | Cron schedule for review checks (every 6 hours) |
-| `REVIEW_AGE_LIMIT_HOURS` | No | `24` | Only notify about reviews newer than this |
-| `RUST_LOG` | No | `info` | Logging level (error, warn, info, debug, trace) |
+| Variable                    | Required | Default         | Description                                                           |
+|-----------------------------|----------|-----------------|-----------------------------------------------------------------------|
+| `DISCORD_TOKEN`             | **Yes**  | -               | Your Discord bot token                                                |
+| `DATABASE_URL`              | **Yes**  | -               | PostgreSQL connection string                                          |
+| `STAR_TEXT`                 | No       | ⭐               | Text to use for star ratings                                          |
+| `FETCH_REVIEWS_ON_STARTUP`  | No       | `true`          | Fetch reviews when bot starts                                         |
+| `NEW_REVIEW_FETCH_INTERVAL` | No       | `0 0 */6 * * *` | Cron schedule for review checks (every 6 hours)                       |
+| `REVIEW_AGE_LIMIT_HOURS`    | No       | `24`            | Only notify about reviews newer than this                             |
+| `BROWSER_TIMEOUT_MS`        | No       | `10000`         | The amount of time the browser will wait for a state until timing out |
+| `CHROME_PATH`               | No       | -               | If specified will use chrome at path instead of downloading           |
+| `RUST_LOG`                  | No       | `info`          | Logging level (error, warn, info, debug, trace)                       |
 
 Database URL format: `postgres://user:password@host:port/database`
 

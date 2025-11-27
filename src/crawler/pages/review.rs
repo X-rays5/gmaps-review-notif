@@ -13,8 +13,8 @@ pub fn get_latest_review_for_user(gmaps_user: &User) -> Result<NewReview> {
     let review_url = GMAPS_REVIEW_URL.replace("{}", gmaps_user.gmaps_id.as_ref());
 
     tab.navigate_to(review_url.as_str())?;
-    browser::wait_for_url(&tab, "reviews/@", 10000)?;
-    browser::wait_dom_ready(&tab, 10000)?;
+    browser::wait_for_url(&tab, "reviews/@")?;
+    browser::wait_dom_ready(&tab)?;
 
     match tab
         .wait_for_elements_by_xpath(r#"//div[contains(@lang, "en")]"#)?
@@ -34,9 +34,8 @@ pub fn get_latest_review_for_user(gmaps_user: &User) -> Result<NewReview> {
     browser::wait_for_url_regex(
         &tab,
         &regex::Regex::new(r"/place/[a-zA-Z0-9-_]+/@.*")?,
-        10000,
     )?;
-    browser::wait_dom_ready(&tab, 10000)?;
+    browser::wait_dom_ready(&tab)?;
 
     tracing::debug!("Got review for {}", review_url);
 
@@ -94,8 +93,8 @@ pub fn get_latest_review_for_user(gmaps_user: &User) -> Result<NewReview> {
     let place_details_button =
         tab.find_element_by_xpath(r#"//div[contains(@jsaction, "placeNameHeader")]"#)?;
     place_details_button.click()?;
-    browser::wait_for_url_regex(&tab, &regex::Regex::new(r"maps/place/.+/@.*")?, 10000)?;
-    browser::wait_dom_ready(&tab, 10000)?;
+    browser::wait_for_url_regex(&tab, &regex::Regex::new(r"maps/place/.+/@.*")?)?;
+    browser::wait_dom_ready(&tab)?;
     let place_name =
         get_place_name_from_url(&tab.get_url()).unwrap_or_else(|| "Unknown Place".to_string());
 

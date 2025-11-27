@@ -79,7 +79,7 @@ pub fn accept_gmaps_terms(browser: &Browser) -> Result<()> {
             Ok(button) => {
                 button.click()?;
                 tab.wait_until_navigated()?;
-                wait_dom_ready(&tab, 10000)?;
+                wait_dom_ready(&tab)?;
             }
             Err(e) => {
                 if tab.get_url().contains("consent.google.com") {
@@ -98,8 +98,9 @@ pub fn accept_gmaps_terms(browser: &Browser) -> Result<()> {
 pub fn wait_for_url(
     tab: &headless_chrome::Tab,
     url_substring: &str,
-    timeout_ms: u64,
 ) -> Result<()> {
+    let timeout_ms = get_config().browser_timeout_ms;
+
     tracing::debug!("Waiting for URL: {}", url_substring);
     let start = std::time::Instant::now();
     while !tab.get_url().contains(url_substring) {
@@ -119,8 +120,9 @@ pub fn wait_for_url(
 pub fn wait_for_url_regex(
     tab: &headless_chrome::Tab,
     url_pattern: &regex::Regex,
-    timeout_ms: u64,
 ) -> Result<()> {
+    let timeout_ms = get_config().browser_timeout_ms;
+
     tracing::debug!("Waiting for URL matching pattern: {}", url_pattern.as_str());
     let start = std::time::Instant::now();
     while !url_pattern.is_match(&tab.get_url()) {
@@ -138,7 +140,9 @@ pub fn wait_for_url_regex(
     Ok(())
 }
 
-pub fn wait_dom_ready(tab: &headless_chrome::Tab, timeout_ms: u64) -> Result<()> {
+pub fn wait_dom_ready(tab: &headless_chrome::Tab) -> Result<()> {
+    let timeout_ms = get_config().browser_timeout_ms;
+
     tracing::debug!("Waiting for DOM ready");
     let start = std::time::Instant::now();
     while !tab

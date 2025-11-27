@@ -11,7 +11,7 @@ pub fn get_user_from_id(user_id: &str) -> Result<NewUser> {
     let user_url = GMAPS_USER_URL.replace("{}", user_id);
     tab.navigate_to(&user_url)?;
     tab.wait_until_navigated()?;
-    browser::wait_for_url(&tab, "/reviews/@", 15000)?;
+    browser::wait_for_url(&tab, "/reviews/@")?;
 
     let name_element = tab.find_element(
         r"h1.fontHeadlineLarge[role='button'][tabindex='0'][aria-haspopup='true']",
