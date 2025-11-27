@@ -91,6 +91,9 @@ FROM debian:trixie-slim
 RUN apt-get update && apt-get install -y \
     # PostgreSQL client libraries
     libpq5 \
+    # Chrome/Chromium and ChromeDriver
+    chromium \
+    chromium-driver \
     # Dependencies for headless Chrome
     ca-certificates \
     fonts-liberation \
@@ -115,6 +118,9 @@ RUN apt-get update && apt-get install -y \
     libu2f-udev \
     libvulkan1 \
     && rm -rf /var/lib/apt/lists/*
+
+# Set Chrome/Chromium path for headless_chrome library
+ENV CHROME_PATH=/usr/bin/chromium
 
 # Copy Diesel CLI from diesel-builder stage
 COPY --from=diesel-builder /usr/local/cargo/bin/diesel /usr/local/bin/diesel

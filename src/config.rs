@@ -7,6 +7,7 @@ pub struct Config {
     pub discord_token: String,
     pub database_url: String,
     pub review_age_limit_hours: i64,
+    pub chrome_path: Option<String>,
 }
 
 static CONFIG: LazyLock<Config> = LazyLock::new(|| Config {
@@ -23,6 +24,7 @@ static CONFIG: LazyLock<Config> = LazyLock::new(|| Config {
         .unwrap_or_else(|_| "24".to_string())
         .parse()
         .unwrap_or(24),
+    chrome_path: std::env::var("CHROME_PATH").ok(),
 });
 
 pub fn get_config() -> &'static Config {

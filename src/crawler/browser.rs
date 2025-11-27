@@ -4,6 +4,9 @@ use std::ops::Deref;
 use std::sync::Arc;
 use std::time::Duration;
 
+use crate::config;
+use crate::config::get_config;
+
 pub struct AutoClosableTab {
     tab: Arc<headless_chrome::Tab>,
 }
@@ -22,7 +25,9 @@ impl Deref for AutoClosableTab {
 }
 
 pub fn get(accept_terms: bool) -> Result<Browser> {
-    let browser = Browser::new(LaunchOptions {
+    let cfg = config::get_config();
+
+    let mut launch_options = LaunchOptions {
         headless: false,
         window_size: Some((1920, 1080)),
         args: vec![
@@ -31,7 +36,18 @@ pub fn get(accept_terms: bool) -> Result<Browser> {
             "--lang=en-US".as_ref(),
         ],
         ..Default::default()
-    });
+    };
+
+    // Use custom Chrome path if configured, otherwise let headless_chrome
+    // use its default behavior (downloading Chrome if needed)
+    if let Some(chrome_path) = &cfg.chrome_path {
+        tracing::info!("Using Chrome binary at: {}", chrome_path);
+        launch_options.path = Some(chrome_path.clone().into());
+    } else {
+        tracing::info!("Using default Chrome discovery/download behavior");
+    }
+
+    let browser = Browser::new(launch_options);
 
     match browser {
         Ok(b) => {
