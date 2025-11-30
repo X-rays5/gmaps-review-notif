@@ -46,7 +46,12 @@ pub fn get(accept_terms: bool) -> Result<Browser> {
 
 pub fn new_tab(browser: &Browser) -> Result<AutoClosableTab> {
     let tab = browser.new_tab()?;
-    tab.enable_stealth_mode()?;
+    match tab.enable_stealth_mode() {
+        Ok(_) => (),
+        Err(e) => {
+            return Err(anyhow::anyhow!("Failed to enable stealth mode: {e}"));
+        }
+    }
     tab.set_default_timeout(Duration::from_secs(10));
     Ok(AutoClosableTab { tab })
 }
