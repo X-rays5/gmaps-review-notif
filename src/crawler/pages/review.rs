@@ -67,9 +67,16 @@ pub fn get_latest_review_for_user(gmaps_user: &User) -> Result<NewReview> {
 
     tracing::debug!("Retrieved review text: '{}'", review_text);
 
-    let stars_span = tab.find_elements_by_xpath(
-        r#"//span[contains(@aria-label, "stars")]/span[contains(@class, "google-symbols")]"#,
-    )?;
+    let stars_span = match tab.find_elements_by_xpath(
+        r#"//span[contains(@aria-label, " star")]/span[contains(@class, "google-symbols")]"#,
+    ) {
+        Ok(elems) => elems,
+        Err(_) => {
+            return Err(anyhow::anyhow!(
+                "Failed to find star rating elements for review"
+            ))
+        }
+    };
     if stars_span.is_empty() {
         return Err(anyhow::anyhow!("Failed to find star rating element"));
     }
