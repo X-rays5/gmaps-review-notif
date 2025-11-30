@@ -34,7 +34,7 @@ fn open_user_page(tab: &headless_chrome::Tab, user_id: &str) -> Result<()> {
         Ok(_) => (),
         Err(e) => {
             return Err(anyhow::anyhow!(
-                "Failed to navigate to user page {user_url}: {e}"
+                "Failed to wait for navigation to complete for user page {user_url}: {e}"
             ));
         }
     }
