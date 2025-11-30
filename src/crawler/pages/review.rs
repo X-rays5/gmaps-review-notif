@@ -60,7 +60,6 @@ fn open_review_page(tab: &Tab, gmaps_user: &User) -> Result<()> {
 
     load_single_review_page(tab)?;
 
-    tracing::debug!("Loaded review page: {}", tab.get_url());
     Ok(())
 }
 
