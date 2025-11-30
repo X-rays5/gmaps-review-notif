@@ -190,10 +190,7 @@ fn retrieve_star_count(tab: &Tab) -> Result<i32> {
 
     let mut star_count = 0;
     for star in stars_span {
-        let class_value = match star.get_attribute_value("class") {
-            Ok(Some(class)) => Some(class),
-            _ => None,
-        };
+        let class_value = star.get_attribute_value("class").ok().flatten();
         if let Some(class) = class_value
             && class == valid_star_classes
         {
