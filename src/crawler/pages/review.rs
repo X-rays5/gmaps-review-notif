@@ -65,7 +65,6 @@ fn open_review_page(tab: &Tab, gmaps_user: &User) -> Result<()> {
 }
 
 fn load_review_url(tab: &Tab, gmaps_user: &User) -> Result<()> {
-
     let review_url = GMAPS_REVIEW_URL.replace("{}", gmaps_user.gmaps_id.as_ref());
     match tab.navigate_to(review_url.as_str()) {
         Ok(_) => (),
