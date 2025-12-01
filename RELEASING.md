@@ -18,8 +18,8 @@ To trigger a new release:
    ```
 
 3. GitHub Actions will automatically:
-   - Build multi-architecture Docker images (linux/amd64 and linux/arm64)
-   - Push images to GitHub Container Registry (ghcr.io)
+   - Build Docker image (linux/amd64)
+   - Push image to GitHub Container Registry (ghcr.io)
    - Create a GitHub release with auto-generated release notes
 
 ### Version Tags
@@ -70,7 +70,7 @@ Unified workflow that handles both releases and nightly builds:
 #### Release Mode
 Triggers on version tag pushes (e.g., `v1.0.0`):
 - Automatically detects release build from tag push
-- Builds multi-architecture Docker images (`linux/amd64` and `linux/arm64`)
+- Builds Docker image (`linux/amd64`)
 - Pushes to GitHub Container Registry with semantic versioning tags
 - Creates GitHub release with automatic release notes
 
@@ -80,8 +80,7 @@ Runs daily at 2 AM UTC (or via manual trigger):
 - Only builds if there are new changes
 - Extracts version from `Cargo.toml`
 - Creates versioned tag: `{version}-nightly-YYYYMMDD` (e.g., `0.1.0-nightly-20231123`)
-- Publishes Docker images with both versioned tag and `nightly` tag
-- Supports multi-architecture builds (linux/amd64 and linux/arm64)
+- Publishes Docker image with both versioned tag and `nightly` tag
 
 To use nightly releases:
 ```bash
@@ -93,16 +92,16 @@ Or pull a specific nightly version:
 docker pull ghcr.io/x-rays5/gmaps-review-notif:0.1.0-nightly-20231123
 ```
 
-**Note:** The workflow uses a unified `build-and-push` job with conditional steps that execute based on the build type (release vs nightly). All Docker setup steps (QEMU, Buildx, login) are shared, while build-specific steps (metadata extraction, tagging, release creation) run conditionally using `if:` expressions. This approach eliminates code duplication between release and nightly builds.
+**Note:** The workflow uses a unified `build-and-push` job with conditional steps that execute based on the build type (release vs nightly). All Docker setup steps (Buildx, login) are shared, while build-specific steps (metadata extraction, tagging, release creation) run conditionally using `if:` expressions.
 
 ## Manual Release Steps
 
 If you need to create a release manually:
 
-1. Build multi-arch images locally:
+1. Build image locally:
    ```bash
    docker buildx create --use
-   docker buildx build --platform linux/amd64,linux/arm64 \
+   docker buildx build --platform linux/amd64 \
      -t ghcr.io/x-rays5/gmaps-review-notif:v1.0.0 \
      -t ghcr.io/x-rays5/gmaps-review-notif:latest \
      --push .

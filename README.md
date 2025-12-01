@@ -12,7 +12,6 @@ A Discord bot that monitors Google Maps user profiles for new reviews and sends 
 - Scheduled review fetching with configurable cron intervals
 - PostgreSQL database for tracking reviews and followed users
 - Headless Chrome web scraping
-- Multi-architecture Docker support (x64 and ARM64)
 
 ## Quick Start
 

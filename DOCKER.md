@@ -136,10 +136,6 @@ docker-compose exec app diesel migration revert
 > [!CAUTION]
 > Reverting migrations may cause data loss if the migrations contain destructive operations (e.g., dropping columns or tables).
 
-## Multi-Architecture Support
+## Platform Support
 
-The published images support:
-- **linux/amd64**: Intel/AMD 64-bit processors
-- **linux/arm64**: ARM 64-bit processors (Raspberry Pi 4/5, Apple Silicon, AWS Graviton)
-
-Docker automatically pulls the correct architecture for your system.
+The published images are built for **linux/amd64** (Intel/AMD 64-bit processors).
