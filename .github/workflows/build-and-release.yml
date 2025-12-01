@@ -98,14 +98,7 @@ jobs:
           echo "nightly_version=" >> $GITHUB_OUTPUT
 
   build-and-push:
-    strategy:
-      matrix:
-        include:
-          - platform: linux/amd64
-            runner: ubuntu-latest
-          - platform: linux/arm64
-            runner: ubuntu-24.04-arm
-    runs-on: ${{ matrix.runner }}
+    runs-on: ubuntu-latest
     needs: [determine-build-type, check-nightly-changes]
     if: |
       always() &&
@@ -122,12 +115,6 @@ jobs:
         id: repo_name
         run: |
           echo "lowercase=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
-
-      - name: Set platform-specific tag suffix
-        id: platform_suffix
-        run: |
-          ARCH=$(echo "${{ matrix.platform }}" | cut -d'/' -f2)
-          echo "arch=${ARCH}" >> $GITHUB_OUTPUT
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -151,110 +138,35 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
             type=raw,value=latest
-          flavor: |
-            suffix=-${{ steps.platform_suffix.outputs.arch }},onlatest=true
 
-      # Release build: Build and push platform-specific image
+      # Release build: Build and push image
       - name: Build and push Docker image (Release)
         if: needs.determine-build-type.outputs.is_release == 'true'
         uses: docker/build-push-action@v6
         with:
           context: .
-          platforms: ${{ matrix.platform }}
+          platforms: linux/amd64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # Nightly build: Build and push platform-specific image
+      # Nightly build: Build and push image
       - name: Build and push Docker image (Nightly)
         if: needs.determine-build-type.outputs.is_nightly == 'true'
         uses: docker/build-push-action@v6
         with:
           context: .
-          platforms: ${{ matrix.platform }}
+          platforms: linux/amd64
           push: true
           tags: |
-            ghcr.io/${{ steps.repo_name.outputs.lowercase }}:${{ needs.check-nightly-changes.outputs.nightly_version }}-${{ steps.platform_suffix.outputs.arch }}
-            ghcr.io/${{ steps.repo_name.outputs.lowercase }}:nightly-${{ steps.platform_suffix.outputs.arch }}
+            ghcr.io/${{ steps.repo_name.outputs.lowercase }}:${{ needs.check-nightly-changes.outputs.nightly_version }}
+            ghcr.io/${{ steps.repo_name.outputs.lowercase }}:nightly
           labels: |
             org.opencontainers.image.version=${{ needs.check-nightly-changes.outputs.nightly_version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-  create-manifest:
-    runs-on: ubuntu-latest
-    needs: [determine-build-type, check-nightly-changes, build-and-push]
-    if: |
-      always() &&
-      needs.build-and-push.result == 'success' &&
-      (needs.determine-build-type.outputs.is_release == 'true' ||
-       (needs.determine-build-type.outputs.is_nightly == 'true' && needs.check-nightly-changes.outputs.has_changes == 'true'))
-
-    steps:
-      - name: Convert repository name to lowercase
-        id: repo_name
-        run: |
-          echo "lowercase=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
-
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      # Release manifest: Create and push multi-arch manifests
-      - name: Create and push release manifests
-        if: needs.determine-build-type.outputs.is_release == 'true'
-        run: |
-          # Extract version from tag
-          VERSION="${{ github.ref_name }}"
-          MAJOR=$(echo "$VERSION" | cut -d. -f1 | sed 's/v//')
-          MINOR=$(echo "$VERSION" | cut -d. -f2)
-
-          IMAGE="ghcr.io/${{ steps.repo_name.outputs.lowercase }}"
-
-          # Create and push manifests for all tags
-          docker buildx imagetools create -t "${IMAGE}:${VERSION}" \
-            "${IMAGE}:${VERSION}-amd64" \
-            "${IMAGE}:${VERSION}-arm64"
-
-          docker buildx imagetools create -t "${IMAGE}:${MAJOR}.${MINOR}" \
-            "${IMAGE}:${VERSION}-amd64" \
-            "${IMAGE}:${VERSION}-arm64"
-
-          docker buildx imagetools create -t "${IMAGE}:${MAJOR}" \
-            "${IMAGE}:${VERSION}-amd64" \
-            "${IMAGE}:${VERSION}-arm64"
-
-          docker buildx imagetools create -t "${IMAGE}:latest" \
-            "${IMAGE}:${VERSION}-amd64" \
-            "${IMAGE}:${VERSION}-arm64"
-
-      # Nightly manifest: Create and push multi-arch manifests
-      - name: Create and push nightly manifests
-        if: needs.determine-build-type.outputs.is_nightly == 'true'
-        run: |
-          IMAGE="ghcr.io/${{ steps.repo_name.outputs.lowercase }}"
-          NIGHTLY_VERSION="${{ needs.check-nightly-changes.outputs.nightly_version }}"
-
-          # Create and push manifest for versioned nightly tag
-          docker buildx imagetools create -t "${IMAGE}:${NIGHTLY_VERSION}" \
-            "${IMAGE}:${NIGHTLY_VERSION}-amd64" \
-            "${IMAGE}:${NIGHTLY_VERSION}-arm64"
-
-          # Create and push manifest for nightly tag
-          docker buildx imagetools create -t "${IMAGE}:nightly" \
-            "${IMAGE}:nightly-amd64" \
-            "${IMAGE}:nightly-arm64"
 
       # Release-specific: Create GitHub Release
       - name: Create GitHub Release
