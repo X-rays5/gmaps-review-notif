@@ -21,8 +21,9 @@ pub fn check_for_new_reviews() {
     match get_followed_users_with_old_reviews() {
         Ok(users) => {
             tracing::info!(
-                "Found '{}' followed users with reviews past age limit",
-                users.len()
+                "Found '{}'/'{}' followed users with reviews past age limit",
+                users.len(),
+                following::get_amount_of_users_followed().unwrap()
             );
             process_outdated_user_reviews(users);
         }

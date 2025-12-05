@@ -6,7 +6,31 @@ use crate::schema::reviews;
 use crate::schema::users;
 use anyhow::Result;
 use chrono::Utc;
+use diesel::dsl::count;
 use diesel::prelude::*;
+
+
+pub fn get_amount_of_users_followed() -> Result<i64> {
+    let mut conn = match get_connection() {
+        Some(c) => c,
+        None => {
+            return Err(anyhow::anyhow!("Failed to get DB connection"));
+        }
+    };
+
+    match following::table
+        .select(following::followed_user_id)
+        .distinct()
+        .count()
+        .first::<i64>(&mut conn)
+    {
+        Ok(count) => Ok(count),
+        Err(e) => {
+            tracing::error!("Failed to count followed users: {}", e);
+            Err(anyhow::anyhow!("Database query error: {e}"))
+        }
+    }
+}
 
 pub fn get_followed_users_with_old_reviews() -> Result<Vec<User>> {
     let mut conn = match get_connection() {
