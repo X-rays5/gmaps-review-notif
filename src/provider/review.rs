@@ -45,6 +45,7 @@ pub fn get_new_review(user_id: i32) -> Option<ReviewWithUser> {
     {
         Some(new_review)
     } else {
+        tracing::debug!("No new review found for user id '{}' latest known at '{}' found at '{}'", user_id, old_review.review.found_at, new_review.review.found_at);
         None
     }
 }
