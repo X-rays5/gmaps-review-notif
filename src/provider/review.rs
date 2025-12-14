@@ -132,6 +132,11 @@ fn save_new_review(new_review: &NewReview) -> Option<ReviewWithUser> {
     }
 }
 
+/// Deletes all reviews for the specified user from the database.
+///
+/// This function removes all previous reviews associated with the given `user_id`.
+/// It is typically called before saving a new review to ensure only the latest review is stored.
+/// Returns `Some(())` if the operation succeeds, or `None` if there is a database error.
 fn delete_reviews_for_user(user_id: i32) -> Option<()> {
     let mut conn = get_connection()?;
 
