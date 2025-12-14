@@ -45,12 +45,30 @@ pub fn get_new_review(user_id: i32) -> Option<ReviewWithUser> {
     {
         Some(new_review)
     } else {
+        tracing::debug!("No new review found for user id '{}' latest known at '{}' found at '{}'", user_id, old_review.review.found_at, new_review.review.found_at);
         None
     }
 }
 
 pub fn get_latest_review_for_user(user_id: i32) -> Option<ReviewWithUser> {
-    if let Some(review) = get_latest_review_from_db(user_id) { Some(review) } else {
+    let latest = get_latest_review_from_db(user_id);
+    if let Some(latest_review) = latest {
+        let age_limit_hours = crate::config::get_config().review_age_limit_hours;
+        let age_limit_duration = chrono::Duration::hours(age_limit_hours);
+        let cutoff_time = (chrono::Utc::now() - age_limit_duration).naive_utc();
+        if latest_review.review.found_at >= cutoff_time {
+            Some(latest_review)
+        } else {
+            let user = match user::get_user_from_id(user_id) {
+                Ok(u) => u,
+                Err(e) => {
+                    tracing::error!("Failed to get user with id {}: {}", user_id, e);
+                    return None;
+                }
+            };
+            fetch_and_save_latest_review(&user)
+        }
+    } else {
         let user = match user::get_user_from_id(user_id) {
             Ok(u) => u,
             Err(e) => {
@@ -90,21 +108,28 @@ fn fetch_and_save_latest_review(user: &User) -> Option<ReviewWithUser> {
 fn save_new_review(new_review: &NewReview) -> Option<ReviewWithUser> {
     let mut conn = get_connection()?;
 
-    match diesel::insert_into(reviews::table)
-        .values(new_review)
-        .get_result::<Review>(&mut conn)
-    {
-        Ok(saved_review) => {
-            let user = users::table
-                .filter(users::id.eq(new_review.user_id))
-                .first::<User>(&mut conn)
-                .ok()?;
+    // Wrap delete and insert in a transaction to ensure atomicity
+    match conn.transaction::<_, diesel::result::Error, _>(|conn| {
+        // Delete old reviews for the user
+        diesel::delete(reviews::table.filter(reviews::user_id.eq(new_review.user_id)))
+            .execute(conn)?;
 
-            Some(ReviewWithUser {
-                review: saved_review,
-                user,
-            })
-        }
+        // Insert the new review
+        let saved_review = diesel::insert_into(reviews::table)
+            .values(new_review)
+            .get_result::<Review>(conn)?;
+
+        // Fetch the user
+        let user = users::table
+            .filter(users::id.eq(new_review.user_id))
+            .first::<User>(conn)?;
+
+        Ok(ReviewWithUser {
+            review: saved_review,
+            user,
+        })
+    }) {
+        Ok(result) => Some(result),
         Err(e) => {
             tracing::error!("Failed to save new review to database: {}", e);
             None

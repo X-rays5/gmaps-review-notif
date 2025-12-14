@@ -59,6 +59,8 @@ fn process_outdated_user_reviews(users: Vec<User>) {
 }
 
 async fn notify_new_review(following: Following, review: ReviewWithUser) {
+    tracing::info!("Sending new review notification for user '{}' to channel '{}'", review.user.gmaps_id, following.channel_id);
+
     let http = serenity::Http::new(get_config().discord_token.as_str());
     let Some(webhook_id) = ensure_webhook_exists(
         following.webhook_id.as_str(),
