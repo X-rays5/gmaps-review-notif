@@ -106,39 +106,32 @@ fn fetch_and_save_latest_review(user: &User) -> Option<ReviewWithUser> {
 }
 
 fn save_new_review(new_review: &NewReview) -> Option<ReviewWithUser> {
-    delete_reviews_for_user(new_review.user_id);
-
     let mut conn = get_connection()?;
 
-    match diesel::insert_into(reviews::table)
-        .values(new_review)
-        .get_result::<Review>(&mut conn)
-    {
-        Ok(saved_review) => {
-            let user = users::table
-                .filter(users::id.eq(new_review.user_id))
-                .first::<User>(&mut conn)
-                .ok()?;
+    // Wrap delete and insert in a transaction to ensure atomicity
+    match conn.transaction::<_, diesel::result::Error, _>(|conn| {
+        // Delete old reviews for the user
+        diesel::delete(reviews::table.filter(reviews::user_id.eq(new_review.user_id)))
+            .execute(conn)?;
 
-            Some(ReviewWithUser {
-                review: saved_review,
-                user,
-            })
-        }
+        // Insert the new review
+        let saved_review = diesel::insert_into(reviews::table)
+            .values(new_review)
+            .get_result::<Review>(conn)?;
+
+        // Fetch the user
+        let user = users::table
+            .filter(users::id.eq(new_review.user_id))
+            .first::<User>(conn)?;
+
+        Ok(ReviewWithUser {
+            review: saved_review,
+            user,
+        })
+    }) {
+        Ok(result) => Some(result),
         Err(e) => {
             tracing::error!("Failed to save new review to database: {}", e);
-            None
-        }
-    }
-}
-
-fn delete_reviews_for_user(user_id: i32) -> Option<()> {
-    let mut conn = get_connection()?;
-
-    match diesel::delete(reviews::table.filter(reviews::user_id.eq(user_id))).execute(&mut conn) {
-        Ok(_) => Some(()),
-        Err(e) => {
-            tracing::error!("Failed to delete old reviews for user {}: {}", user_id, e);
             None
         }
     }
