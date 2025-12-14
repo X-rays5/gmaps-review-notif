@@ -52,12 +52,12 @@ pub fn get_new_review(user_id: i32) -> Option<ReviewWithUser> {
 
 pub fn get_latest_review_for_user(user_id: i32) -> Option<ReviewWithUser> {
     let latest = get_latest_review_from_db(user_id);
-    if let Some(r) = latest {
+    if let Some(latest_review) = latest {
         let age_limit_hours = crate::config::get_config().review_age_limit_hours;
         let age_limit_duration = chrono::Duration::hours(age_limit_hours);
         let cutoff_time = (chrono::Utc::now() - age_limit_duration).naive_utc();
-        if r.review.found_at >= cutoff_time {
-            Some(r)
+        if latest_review.review.found_at >= cutoff_time {
+            Some(latest_review)
         } else {
             let user = match user::get_user_from_id(user_id) {
                 Ok(u) => u,
