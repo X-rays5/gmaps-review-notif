@@ -6,7 +6,6 @@ use crate::schema::reviews;
 use crate::schema::users;
 use anyhow::Result;
 use chrono::Utc;
-use diesel::dsl::count;
 use diesel::prelude::*;
 
 
