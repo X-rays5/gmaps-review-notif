@@ -11,12 +11,11 @@ pub fn get_latest_review_for_user_gmaps_id(gmaps_id: &str) -> Option<ReviewWithU
 
 pub fn check_for_new_review(user: &User) -> Option<ReviewWithUser> {
     let Some(old_review) = get_latest_review_from_db(user.id) else { return fetch_and_save_latest_review(user) };
-    if !is_review_paste_age_limit(&old_review.review) {
-        return fetch_and_save_latest_review(user);
+    if !is_review_past_age_limit(&old_review.review) {
+        return None;
     }
 
-    let Some(latest_review) = fetch_latest_review(user) else { return None };
-
+    let latest_review = fetch_latest_review(user)?;
     if is_new_review_different(&old_review.review, &latest_review) {
         save_new_review(&latest_review)
     } else {
@@ -25,17 +24,16 @@ pub fn check_for_new_review(user: &User) -> Option<ReviewWithUser> {
 }
 
 pub fn get_latest_review_for_user(user_id: i32) -> Option<ReviewWithUser> {
-    let Some(old_review) = get_latest_review_from_db(user_id) else { return None };
-    if !is_review_paste_age_limit(&old_review.review) {
+    let old_review = get_latest_review_from_db(user_id)?;
+    if !is_review_past_age_limit(&old_review.review) {
         return None;
     }
 
-    let Some(latest_review) = fetch_latest_review(&old_review.user) else { return None };
-
+    let latest_review = fetch_latest_review(&old_review.user)?;
     if is_new_review_different(&old_review.review, &latest_review) {
         save_new_review(&latest_review)
     } else {
-        None
+        Some(old_review)
     }
 }
 
@@ -53,12 +51,12 @@ fn get_latest_review_from_db(user_id: i32) -> Option<ReviewWithUser> {
 }
 
 fn fetch_and_save_latest_review(user: &User) -> Option<ReviewWithUser> {
-    let Some(new_review) = fetch_latest_review(user) else { return None };
+    let new_review = fetch_latest_review(user)?;
     save_new_review(&new_review)
 }
 
 fn fetch_latest_review(user: &User) -> Option<NewReview> {
-    match crate::crawler::pages::review::get_latest_review_for_user(&user) {
+    match crate::crawler::pages::review::get_latest_review_for_user(user) {
         Ok(r) => Some(r),
         Err(e) => {
             tracing::error!("Failed to fetch latest review from Google Maps: {}", e);
@@ -70,18 +68,14 @@ fn fetch_latest_review(user: &User) -> Option<NewReview> {
 fn save_new_review(new_review: &NewReview) -> Option<ReviewWithUser> {
     let mut conn = get_connection()?;
 
-    // Wrap delete and insert in a transaction to ensure atomicity
     match conn.transaction::<_, diesel::result::Error, _>(|conn| {
-        // Delete old reviews for the user
         diesel::delete(reviews::table.filter(reviews::user_id.eq(new_review.user_id)))
             .execute(conn)?;
 
-        // Insert the new review
         let saved_review = diesel::insert_into(reviews::table)
             .values(new_review)
             .get_result::<Review>(conn)?;
 
-        // Fetch the user
         let user = users::table
             .filter(users::id.eq(new_review.user_id))
             .first::<User>(conn)?;
@@ -109,7 +103,7 @@ fn get_connection() -> Option<DbConnection> {
     }
 }
 
-fn is_review_paste_age_limit(review: &Review) -> bool {
+fn is_review_past_age_limit(review: &Review) -> bool {
     let age_limit_hours = crate::config::get_config().review_age_limit_hours;
     let age_limit_duration = chrono::Duration::hours(age_limit_hours);
     let cutoff_time = (chrono::Utc::now() - age_limit_duration).naive_utc();
@@ -117,7 +111,5 @@ fn is_review_paste_age_limit(review: &Review) -> bool {
 }
 
 fn is_new_review_different(current: &Review, new: &NewReview) -> bool {
-    current.place_name != new.place_name
-        && current.text != new.text
-        && current.stars != new.stars
+    current.place_name != new.place_name || current.text != new.text || current.stars != new.stars
 }
