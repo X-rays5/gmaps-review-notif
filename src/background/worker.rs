@@ -35,7 +35,7 @@ pub fn check_for_new_reviews() {
 
 fn process_outdated_user_reviews(users: Vec<User>) {
     for user in users {
-        let Some(review) = provider::review::get_new_review(user.id) else {
+        let Some(review) = provider::review::check_for_new_review(&user) else {
             tracing::info!(
                     "No new reviews found for followed user with id: {}",
                     user.id
