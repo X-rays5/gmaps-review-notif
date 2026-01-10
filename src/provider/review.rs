@@ -111,5 +111,5 @@ fn is_review_past_age_limit(review: &Review) -> bool {
 }
 
 fn is_new_review_different(current: &Review, new: &NewReview) -> bool {
-    current.place_name != new.place_name || current.text != new.text || current.stars != new.stars
+    current.place_name != new.place_name || current.stars != new.stars || current.original_text != new.original_text
 }
