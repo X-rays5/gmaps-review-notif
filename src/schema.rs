@@ -22,6 +22,7 @@ diesel::table! {
         stars -> Int4,
         user_id -> Int4,
         found_at -> Timestamp,
+        link_en -> Nullable<Text>,
     }
 }
 
