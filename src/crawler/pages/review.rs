@@ -30,7 +30,7 @@ pub fn get_latest_review_for_user(gmaps_user: &User) -> Result<NewReview> {
     let star_count = retrieve_star_count(&tab)?;
     tracing::debug!("Retrieved star rating: {}", star_count);
 
-    let pictures = retrieve_pictures(&tab)?;
+    let pictures = retrieve_pictures(&tab, 1)?;
     let pictures_json = serde_json::to_value(&pictures)?;
     tracing::debug!("Retrieved pictures: {:?}", pictures);
 
@@ -43,7 +43,7 @@ pub fn get_latest_review_for_user(gmaps_user: &User) -> Result<NewReview> {
         original_text: original_review_text,
         stars: star_count,
         user_id: gmaps_user.id,
-        link_en: Some(review_url),
+        link_en: review_url,
         pictures: pictures_json,
     })
 }
@@ -206,7 +206,11 @@ fn retrieve_star_count(tab: &Tab) -> Result<i32> {
     Ok(star_count)
 }
 
-fn retrieve_pictures(tab: &Tab) -> Result<Vec<String>> {
+fn retrieve_pictures(tab: &Tab, depth: i32) -> Result<Vec<String>> {
+    if depth > 10 {
+        return Err(anyhow::anyhow!("Exceeded maximum depth while retrieving pictures, possible infinite loop"));
+    }
+
     tracing::debug!("Retrieving pictures");
     let picture_elements = match tab.find_elements_by_xpath(r"//div/button[@data-photo-index]") {
         Ok(elements) => elements,
@@ -232,7 +236,7 @@ fn retrieve_pictures(tab: &Tab) -> Result<Vec<String>> {
         if aria_label.starts_with('+') {
             picture_element.click().ok();
             sleep(Duration::from_millis(500));
-            return retrieve_pictures(tab);
+            return retrieve_pictures(tab, depth + 1);
         }
     }
 
