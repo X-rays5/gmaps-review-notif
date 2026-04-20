@@ -33,7 +33,7 @@ pub struct Review {
     pub stars: i32,
     pub user_id: i32,
     pub found_at: NaiveDateTime,
-    pub link_en: String,
+    pub link_en: Option<String>,
 }
 
 #[derive(Insertable, Debug)]

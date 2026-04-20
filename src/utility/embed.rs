@@ -13,9 +13,8 @@ pub fn get_review_embed(review_with_user: &ReviewWithUser, original: bool) -> Cr
         review_with_user.review.text.as_str()
     };
 
-    CreateEmbed::default()
+    let embed = CreateEmbed::default()
         .title(review_with_user.review.place_name.clone())
-        .url(review_with_user.review.link_en.clone())
         .field(
             "Stars",
             crate::config::get_config()
@@ -23,11 +22,17 @@ pub fn get_review_embed(review_with_user: &ReviewWithUser, original: bool) -> Cr
                 .repeat(review_with_user.review.stars.try_into().unwrap()),
             false,
         )
-        .author(CreateEmbedAuthor::new(review_with_user.user.name.clone()).url(GMAPS_USER_URL.replace("{}", review_with_user.user.id.to_string().as_str())))
+        .author(CreateEmbedAuthor::new(review_with_user.user.name.clone()).url(GMAPS_USER_URL.replace("{}", review_with_user.user.gmaps_id.as_str())))
         .timestamp(review_with_user.review.found_at.and_utc())
         .description(review_body)
         .footer(CreateEmbedFooter::new(format!(
             "Due to caching, this review may be up to {} hours old.",
             crate::config::get_config().review_age_limit_hours
-        )))
+        )));
+
+    if review_with_user.review.link_en.is_some() {
+        embed.url(review_with_user.review.link_en.clone().unwrap())
+    } else {
+        embed
+    }
 }
