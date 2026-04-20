@@ -4,17 +4,18 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-poise = "0.6.2"
-dotenvy = "0.15.7"
+poise = "0.6"
+dotenvy = "0.15"
 headless_chrome = { version = "1.0.21", features = ["fetch"] }
-diesel = { version = "2.3.7", features = ["postgres", "r2d2", "chrono"] }
-diesel_migrations = "2.3.1"
-anyhow = "1.0.102"
-tokio = { version = "1.52.1", features = ["rt", "rt-multi-thread", "macros"] }
-tokio-cron-scheduler = "0.15.1"
-regex = "1.12.3"
-tracing = "0.1.44"
-tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
-tracing-log = "0.2.0"
-urlencoding = "2.1.3"
-chrono = "0.4.44"
+diesel = { version = "2.3", features = ["postgres", "r2d2", "chrono", "serde_json"] }
+diesel_migrations = "2.3"
+anyhow = "1.0"
+tokio = { version = "1.52", features = ["rt", "rt-multi-thread", "macros"] }
+tokio-cron-scheduler = "0.15"
+regex = "1.12"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-log = "0.2"
+urlencoding = "2.1"
+chrono = "0.4"
+serde_json = "1.0"

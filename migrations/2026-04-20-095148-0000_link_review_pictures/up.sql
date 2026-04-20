@@ -1,0 +1,2 @@
+ALTER TABLE reviews
+    ADD COLUMN pictures JSONB NOT NULL DEFAULT '[]'::JSONB;

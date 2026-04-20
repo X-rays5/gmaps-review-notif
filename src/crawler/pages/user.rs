@@ -10,9 +10,14 @@ pub fn get_user_from_id(user_id: &str) -> Result<NewUser> {
 
     open_user_page(&tab, user_id)?;
 
-    let name_element = tab
-        .find_element(r"h1.fontHeadlineLarge[role='button'][tabindex='0'][aria-haspopup='true']")?;
-    let name = name_element.get_inner_text()?;
+    let name_element = match tab.find_element_by_xpath(r"//button[contains(@jsaction, 'pane.profile-stats.showStats')][contains(@class, 'fontHeadlineLarge')]") {
+        Ok(e) => e,
+        Err(e) => return Err(anyhow::anyhow!("Failed to find user name element for user {user_id}: {e}")),
+    };
+    let name = match name_element.get_inner_text() {
+        Ok(s) => s,
+        Err(e) => return Err(anyhow::anyhow!("Failed to get user name for user {user_id}: {e}")),
+    };
     Ok(NewUser {
         gmaps_id: user_id.to_string(),
         name,
@@ -47,5 +52,7 @@ fn open_user_page(tab: &headless_chrome::Tab, user_id: &str) -> Result<()> {
             ));
         }
     }
+
+    tracing::info!("Successfully loaded user page for user_id: {}, url: {}", user_id, tab.get_url());
     Ok(())
 }

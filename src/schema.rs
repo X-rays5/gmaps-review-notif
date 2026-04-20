@@ -23,6 +23,7 @@ diesel::table! {
         user_id -> Int4,
         found_at -> Timestamp,
         link_en -> Nullable<Text>,
+        pictures -> Jsonb,
     }
 }
 

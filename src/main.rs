@@ -69,8 +69,8 @@ async fn schedule_background_review_check() {
             worker::check_for_new_reviews();
             tracing::info!("Finished startup review check.");
         })
-        .await
-        .expect("failed to run startup review check");
+            .await
+            .expect("failed to run startup review check");
     }
 
     let job = match Job::new(

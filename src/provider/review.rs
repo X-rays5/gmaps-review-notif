@@ -49,7 +49,6 @@ fn get_latest_review_from_db(user_id: i32) -> Option<ReviewWithUser> {
         .inner_join(reviews::table)
         .filter(users::id.eq(user_id))
         .order(reviews::found_at.desc())
-        .select((User::as_select(), Review::as_select()))
         .first::<(User, Review)>(&mut conn)
         .map(|(user, review)| ReviewWithUser { user, review })
         .ok()
@@ -77,9 +76,14 @@ fn save_new_review(new_review: &NewReview) -> Option<ReviewWithUser> {
         diesel::delete(reviews::table.filter(reviews::user_id.eq(new_review.user_id)))
             .execute(conn)?;
 
-        let saved_review = diesel::insert_into(reviews::table)
+        diesel::insert_into(reviews::table)
             .values(new_review)
-            .get_result::<Review>(conn)?;
+            .execute(conn)?;
+
+        let saved_review = reviews::table
+            .filter(reviews::user_id.eq(new_review.user_id))
+            .order(reviews::found_at.desc())
+            .first::<Review>(conn)?;
 
         let user = users::table
             .filter(users::id.eq(new_review.user_id))
@@ -116,5 +120,28 @@ fn is_review_past_age_limit(review: &Review) -> bool {
 }
 
 fn is_new_review_different(current: &Review, new: &NewReview) -> bool {
-    current.place_name != new.place_name || current.stars != new.stars || current.original_text != new.original_text
+    if current.place_name != new.place_name
+        || current.stars != new.stars
+        || current.original_text != new.original_text {
+        return true;
+    }
+
+    // Compare pictures in an order-independent way
+    let current_pics = extract_picture_urls(&current.pictures);
+    let new_pics = extract_picture_urls(&new.pictures);
+    current_pics != new_pics
+}
+
+fn extract_picture_urls(pictures: &serde_json::Value) -> Vec<String> {
+    let mut urls = pictures
+        .as_array()
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| v.as_str())
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    urls.sort();
+    urls
 }

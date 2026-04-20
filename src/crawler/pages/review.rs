@@ -30,6 +30,10 @@ pub fn get_latest_review_for_user(gmaps_user: &User) -> Result<NewReview> {
     let star_count = retrieve_star_count(&tab)?;
     tracing::debug!("Retrieved star rating: {}", star_count);
 
+    let pictures = retrieve_pictures(&tab, 1)?;
+    let pictures_json = serde_json::to_value(&pictures)?;
+    tracing::debug!("Retrieved pictures: {:?}", pictures);
+
     let place_name = get_place_name(&tab, gmaps_user)?;
     tracing::debug!("Retrieved place name: {}", place_name);
 
@@ -40,6 +44,7 @@ pub fn get_latest_review_for_user(gmaps_user: &User) -> Result<NewReview> {
         stars: star_count,
         user_id: gmaps_user.id,
         link_en: review_url,
+        pictures: pictures_json,
     })
 }
 
@@ -199,6 +204,76 @@ fn retrieve_star_count(tab: &Tab) -> Result<i32> {
     }
 
     Ok(star_count)
+}
+
+fn retrieve_pictures(tab: &Tab, depth: i32) -> Result<Vec<String>> {
+    if depth > 10 {
+        return Err(anyhow::anyhow!("Exceeded maximum depth while retrieving pictures, possible infinite loop"));
+    }
+
+    tracing::debug!("Retrieving pictures");
+    let picture_elements = match tab.find_elements_by_xpath(r"//div/button[@data-photo-index]") {
+        Ok(elements) => elements,
+        Err(e) => {
+            tracing::debug!("No picture elements found for review: {e}");
+            return Ok(vec![]);
+        }
+    };
+
+    if picture_elements.is_empty() {
+        return Ok(vec![]);
+    }
+    for picture_element in &picture_elements {
+        let aria_label = match picture_element.get_attribute_value("aria-label") {
+            Ok(aria_label) => if let Some(aria_label) = aria_label { aria_label } else {
+                tracing::error!("Picture element does not have an aria-label attribute");
+                continue;
+            },
+            Err(err) => {
+                tracing::error!("Failed to get aria-label for picture element: {}", err);
+                continue;
+            }
+        };
+
+        // Check if there are more images to be found
+        if aria_label.starts_with('+') {
+            picture_element.click().ok();
+            sleep(Duration::from_millis(500));
+            return retrieve_pictures(tab, depth + 1);
+        }
+    }
+
+    let re = regex::Regex::new(r#"background-image:\s*url\((?:&quot;|")?(https?://[^"]+)(?:&quot;|")?\)"#)?;
+    let mut pictures = vec![];
+    for picture_element in &picture_elements {
+        let style = match picture_element.get_attribute_value("style") {
+            Ok(style) => if let Some(s) = style { s } else {
+                tracing::error!("Picture element does not have a style attribute");
+                continue;
+            },
+            Err(err) => {
+                tracing::error!("Failed to get style attribute for picture element: {}", err);
+                continue;
+            }
+        };
+
+        if let Some(caps) = re.captures(&style) {
+            if let Some(url) = caps.get(1) {
+                let clean_url = if let Some(idx) = url.as_str().rfind('=') {
+                    &url.as_str()[..idx] // Remove everything from '=' onwards
+                } else {
+                    url.as_str() // If no '=' is found, use the full URL
+                };
+                pictures.push(clean_url.to_string());
+            } else {
+                tracing::error!("Failed to extract URL from style attribute: {}", style);
+            }
+        } else {
+            tracing::error!("Style attribute does not match expected format: {}", style);
+        }
+    }
+
+    Ok(pictures)
 }
 
 fn get_place_name(tab: &Tab, gmaps_user: &User) -> Result<String> {
