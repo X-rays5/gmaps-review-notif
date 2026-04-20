@@ -14,7 +14,7 @@ pub fn get_user_from_gmaps_id(gmaps_id: &str) -> Result<User> {
     }
 }
 
-pub fn get_user_from_id(user_id: i32) -> Option<User> {
+pub fn get_user_from_db_id(user_id: i32) -> Option<User> {
     let mut conn = get_connection()?;
 
     users::table
