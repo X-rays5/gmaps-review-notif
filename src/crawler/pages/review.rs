@@ -16,7 +16,10 @@ pub fn get_latest_review_for_user(gmaps_user: &User) -> Result<NewReview> {
     let browser = browser::get(true)?;
     let tab = browser::new_tab(&browser)?;
 
-    open_review_page(&tab, gmaps_user)?;
+    let review_url = match open_review_page(&tab, gmaps_user) {
+        Ok(val) => val,
+        Err(err) => return Err(anyhow::anyhow!("Failed to open review page for user {}: {}", gmaps_user.gmaps_id.as_str(), err)),
+    };
 
     let ReviewText {
         text: review_text,
@@ -36,10 +39,11 @@ pub fn get_latest_review_for_user(gmaps_user: &User) -> Result<NewReview> {
         original_text: original_review_text,
         stars: star_count,
         user_id: gmaps_user.id,
+        link_en: review_url,
     })
 }
 
-fn open_review_page(tab: &Tab, gmaps_user: &User) -> Result<()> {
+fn open_review_page(tab: &Tab, gmaps_user: &User) -> Result<String> {
     load_review_url(tab, gmaps_user)?;
 
     match tab
@@ -58,9 +62,7 @@ fn open_review_page(tab: &Tab, gmaps_user: &User) -> Result<()> {
         }
     }
 
-    load_single_review_page(tab)?;
-
-    Ok(())
+    load_single_review_page(tab)
 }
 
 fn load_review_url(tab: &Tab, gmaps_user: &User) -> Result<()> {
@@ -102,7 +104,7 @@ fn load_review_url(tab: &Tab, gmaps_user: &User) -> Result<()> {
     Ok(())
 }
 
-fn load_single_review_page(tab: &Tab) -> Result<()> {
+fn load_single_review_page(tab: &Tab) -> Result<String> {
     tracing::debug!("Loading single review page: {}", tab.get_url());
 
     match browser::wait_for_url_regex(
@@ -124,7 +126,7 @@ fn load_single_review_page(tab: &Tab) -> Result<()> {
     }
 
     tracing::debug!("Loaded single review page: {}", tab.get_url());
-    Ok(())
+    Ok(tab.get_url())
 }
 
 fn retrieve_review_text(tab: &Tab) -> ReviewText {

@@ -2,7 +2,7 @@ use crate::crawler::browser;
 use crate::models::NewUser;
 use anyhow::Result;
 
-static GMAPS_USER_URL: &str = "https://www.google.com/maps/contrib/{}/reviews?hl=en";
+pub static GMAPS_USER_URL: &str = "https://www.google.com/maps/contrib/{}/reviews?hl=en";
 
 pub fn get_user_from_id(user_id: &str) -> Result<NewUser> {
     let browser = browser::get(true)?;
