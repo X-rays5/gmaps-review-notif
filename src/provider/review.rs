@@ -1,6 +1,6 @@
 use crate::models::{NewReview, Review, ReviewWithUser, User};
 use crate::provider::db::DbConnection;
-use crate::provider::user::{get_user_from_id, gmaps_user_id_to_db_id};
+use crate::provider::user::{get_user_from_db_id, get_user_from_id, gmaps_user_id_to_db_id};
 use crate::schema::reviews;
 use crate::schema::users;
 use diesel::prelude::*;
@@ -31,12 +31,15 @@ pub fn get_latest_review_for_user(user_id: i32) -> Option<ReviewWithUser> {
         }
     }
 
-    let Some(user) = get_user_from_id(user_id) else {
+    let Some(user) = get_user_from_db_id(user_id) else {
         tracing::error!("Failed to get user from db: {}", user_id);
         return None;
     };
 
-    check_for_new_review(&user)
+    match check_for_new_review(&user) {
+        Some(new_user) => Some(new_user),
+        None => latest_in_db
+    }
 }
 
 fn get_latest_review_from_db(user_id: i32) -> Option<ReviewWithUser> {
