@@ -35,14 +35,19 @@ pub fn get_review_embed(review_with_user: &ReviewWithUser, original: bool) -> Cr
 
     // Handle pictures as JSON array
     if let Some(pictures_arr) = review_with_user.review.pictures.as_array() {
-        if pictures_arr.is_empty() {
+        let valid_pictures: Vec<&str> = pictures_arr
+            .iter()
+            .filter_map(|pic| pic.as_str())
+            .filter(|pic| !pic.trim().is_empty())
+            .collect();
+
+        if valid_pictures.is_empty() {
             embed = embed.description(review_body);
         } else {
             let mut description = review_body.to_string();
             description.push_str("\n\n\n");
-            for idx in 0..pictures_arr.len() {
-                let pic = &pictures_arr[idx];
-                description.push_str(format!("[Picture {}]({})\n", idx + 1, pic.as_str().unwrap_or("")).as_str());
+            for (idx, pic) in valid_pictures.iter().enumerate() {
+                description.push_str(format!("[Picture {}]({})\n", idx + 1, pic).as_str());
             }
             embed = embed.description(description);
         }
