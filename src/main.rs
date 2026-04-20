@@ -1,4 +1,3 @@
-#![feature(trivial_bounds)]
 extern crate core;
 
 use crate::background::worker;

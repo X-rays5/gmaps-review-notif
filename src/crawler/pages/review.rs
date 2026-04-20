@@ -215,11 +215,14 @@ fn retrieve_pictures(tab: &Tab, depth: i32) -> Result<Vec<String>> {
     let picture_elements = match tab.find_elements_by_xpath(r"//div/button[@data-photo-index]") {
         Ok(elements) => elements,
         Err(e) => {
-            tracing::error!("Failed to find picture elements: {e}");
-            return Err(anyhow::anyhow!("Failed to find picture elements: {e}"));
+            tracing::debug!("No picture elements found for review: {e}");
+            return Ok(vec![]);
         }
     };
 
+    if picture_elements.is_empty() {
+        return Ok(vec![]);
+    }
     for picture_element in &picture_elements {
         let aria_label = match picture_element.get_attribute_value("aria-label") {
             Ok(aria_label) => if let Some(aria_label) = aria_label { aria_label } else {
