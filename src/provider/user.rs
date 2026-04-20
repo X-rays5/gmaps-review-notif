@@ -14,6 +14,19 @@ pub fn get_user_from_gmaps_id(gmaps_id: &str) -> Result<User> {
     }
 }
 
+pub fn get_user_from_db_id(user_id: i32) -> Option<User> {
+    let mut conn = get_connection()?;
+
+    users::table
+        .filter(users::id.eq(user_id))
+        .first::<User>(&mut conn)
+        .optional()
+        .unwrap_or_else(|e| {
+            tracing::error!("Database query error: {}", e);
+            None
+        })
+}
+
 pub fn gmaps_user_id_to_db_id(gmaps_id: &str) -> Option<i32> {
     match get_user_from_gmaps_id(gmaps_id) {
         Ok(u) => Some(u.id),
