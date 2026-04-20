@@ -25,8 +25,10 @@ pub fn check_for_new_review(user: &User) -> Option<ReviewWithUser> {
 
 pub fn get_latest_review_for_user(user_id: i32) -> Option<ReviewWithUser> {
     let latest_in_db = get_latest_review_from_db(user_id);
-    if latest_in_db.is_some() && !is_review_past_age_limit(&latest_in_db.clone()?.review) {
-        return latest_in_db;
+    if let Some(latest) = latest_in_db.as_ref() {
+        if !is_review_past_age_limit(&latest.review) {
+            return latest_in_db;
+        }
     }
 
     let Some(user) = get_user_from_id(user_id) else {
