@@ -1,6 +1,6 @@
 use crate::models::{NewReview, Review, ReviewWithUser, User};
 use crate::provider::db::DbConnection;
-use crate::provider::user::gmaps_user_id_to_db_id;
+use crate::provider::user::{get_user_from_id, gmaps_user_id_to_db_id};
 use crate::schema::reviews;
 use crate::schema::users;
 use diesel::prelude::*;
@@ -24,17 +24,17 @@ pub fn check_for_new_review(user: &User) -> Option<ReviewWithUser> {
 }
 
 pub fn get_latest_review_for_user(user_id: i32) -> Option<ReviewWithUser> {
-    let old_review = get_latest_review_from_db(user_id)?;
-    if !is_review_past_age_limit(&old_review.review) {
-        return None;
+    let latest_in_db = get_latest_review_from_db(user_id);
+    if latest_in_db.is_some() && !is_review_past_age_limit(&latest_in_db.clone()?.review) {
+        return latest_in_db;
     }
 
-    let latest_review = fetch_latest_review(&old_review.user)?;
-    if is_new_review_different(&old_review.review, &latest_review) {
-        save_new_review(&latest_review)
-    } else {
-        Some(old_review)
-    }
+    let Some(user) = get_user_from_id(user_id) else {
+        tracing::error!("Failed to get user from db: {}", user_id);
+        return None;
+    };
+
+    check_for_new_review(&user)
 }
 
 fn get_latest_review_from_db(user_id: i32) -> Option<ReviewWithUser> {
