@@ -1,6 +1,6 @@
 use crate::models::{NewReview, Review, ReviewWithUser, User};
 use crate::provider::db::DbConnection;
-use crate::provider::user::{get_user_from_db_id, get_user_from_id, gmaps_user_id_to_db_id};
+use crate::provider::user::{get_user_from_db_id, gmaps_user_id_to_db_id};
 use crate::schema::reviews;
 use crate::schema::users;
 use diesel::prelude::*;
