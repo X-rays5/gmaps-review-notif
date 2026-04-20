@@ -1,6 +1,7 @@
 use crate::schema::{following, reviews, users};
 use chrono::NaiveDateTime;
 use diesel::prelude::*;
+use serde_json::Value as JsonValue;
 
 // --- USER MODELS ---
 #[derive(Queryable, Selectable, Identifiable, Debug, Clone)]
@@ -34,6 +35,7 @@ pub struct Review {
     pub user_id: i32,
     pub found_at: NaiveDateTime,
     pub link_en: Option<String>,
+    pub pictures: JsonValue,
 }
 
 #[derive(Insertable, Debug)]
@@ -46,6 +48,7 @@ pub struct NewReview {
     pub stars: i32,
     pub user_id: i32,
     pub link_en: String,
+    pub pictures: JsonValue,
 }
 
 #[derive(Queryable, Debug, Clone)]
