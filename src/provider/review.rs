@@ -134,50 +134,51 @@ fn is_new_review_different(current: &Review, new: &NewReview) -> bool {
         return false;
     }
 
-    let mut changed_fields = Vec::new();
-    if place_name_changed {
-        changed_fields.push("place_name");
-    }
-    if stars_changed {
-        changed_fields.push("stars");
-    }
-    if original_text_changed {
-        changed_fields.push("original_text");
-    }
-    if pictures_changed {
-        changed_fields.push("pictures");
-    }
+    if tracing::enabled!(tracing::Level::INFO) {
+        let mut changed_fields = Vec::new();
+        if place_name_changed {
+            changed_fields.push("place_name");
+        }
+        if stars_changed {
+            changed_fields.push("stars");
+        }
+        if original_text_changed {
+            changed_fields.push("original_text");
+        }
+        if pictures_changed {
+            changed_fields.push("pictures");
+        }
 
-    let mut change_details = Vec::new();
-    if place_name_changed {
-        change_details.push(format!(
-            "place_name: {:?} -> {:?}",
-            current.place_name, new.place_name
-        ));
-    }
-    if stars_changed {
-        change_details.push(format!("stars: {} -> {}", current.stars, new.stars));
-    }
-    if original_text_changed {
-        change_details.push(format!(
-            "original_text: {:?} -> {:?}",
-            current.original_text, new.original_text
-        ));
-    }
-    if pictures_changed {
-        change_details.push(format!(
-            "picture_count: {} -> {}",
-            current_pic_count, new_pic_count
-        ));
-    }
+        let mut change_details = Vec::new();
+        if place_name_changed {
+            change_details.push(format!(
+                "place_name: {:?} -> {:?}",
+                current.place_name, new.place_name
+            ));
+        }
+        if stars_changed {
+            change_details.push(format!("stars: {} -> {}", current.stars, new.stars));
+        }
+        if original_text_changed {
+            change_details.push(format!(
+                "original_text: {:?} -> {:?}",
+                current.original_text, new.original_text
+            ));
+        }
+        if pictures_changed {
+            change_details.push(format!(
+                "picture_count: {} -> {}",
+                current_pic_count, new_pic_count
+            ));
+        }
 
-    tracing::info!(
-        user_id = new.user_id,
-        changed_fields = ?changed_fields,
-        changes = ?change_details,
-        "Detected new review differences"
-    );
-
+        tracing::info!(
+            user_id = new.user_id,
+            changed_fields = ?changed_fields,
+            changes = ?change_details,
+            "Detected new review differences"
+        );
+    }
     true
 }
 
