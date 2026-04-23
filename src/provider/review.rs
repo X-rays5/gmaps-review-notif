@@ -120,30 +120,73 @@ fn is_review_past_age_limit(review: &Review) -> bool {
 }
 
 fn is_new_review_different(current: &Review, new: &NewReview) -> bool {
-    if current.place_name != new.place_name
-        || current.stars != new.stars
-        || current.original_text != new.original_text {
-        return true;
+    let place_name_changed = current.place_name != new.place_name;
+    let stars_changed = current.stars != new.stars;
+    let original_text_changed = current.original_text != new.original_text;
+
+    // Compare pictures by count only because URLs are not stable.
+    let current_pic_count = extract_picture_count(&current.pictures);
+    let new_pic_count = extract_picture_count(&new.pictures);
+    let pictures_changed = current_pic_count != new_pic_count;
+
+    let is_different = place_name_changed || stars_changed || original_text_changed || pictures_changed;
+    if !is_different {
+        return false;
     }
 
-    // Compare pictures in an order-independent way
-    let current_pics = extract_picture_urls(&current.pictures);
-    let new_pics = extract_picture_urls(&new.pictures);
-    current_pics != new_pics
+    if tracing::enabled!(tracing::Level::INFO) {
+        let mut changed_fields = Vec::new();
+        if place_name_changed {
+            changed_fields.push("place_name");
+        }
+        if stars_changed {
+            changed_fields.push("stars");
+        }
+        if original_text_changed {
+            changed_fields.push("original_text");
+        }
+        if pictures_changed {
+            changed_fields.push("pictures");
+        }
+
+        let mut change_details = Vec::new();
+        if place_name_changed {
+            change_details.push(format!(
+                "place_name: {:?} -> {:?}",
+                current.place_name, new.place_name
+            ));
+        }
+        if stars_changed {
+            change_details.push(format!("stars: {} -> {}", current.stars, new.stars));
+        }
+        if original_text_changed {
+            change_details.push(format!(
+                "original_text: {:?} -> {:?}",
+                current.original_text, new.original_text
+            ));
+        }
+        if pictures_changed {
+            change_details.push(format!(
+                "picture_count: {} -> {}",
+                current_pic_count, new_pic_count
+            ));
+        }
+
+        tracing::info!(
+            user_id = new.user_id,
+            changed_fields = ?changed_fields,
+            changes = ?change_details,
+            "Detected new review differences"
+        );
+    }
+    true
 }
 
-fn extract_picture_urls(pictures: &serde_json::Value) -> Vec<String> {
-    let mut urls = pictures
+fn extract_picture_count(pictures: &serde_json::Value) -> usize {
+    pictures
         .as_array()
-        .map(|arr| {
-            arr.iter()
-                .filter_map(|v| v.as_str())
-                .map(ToString::to_string)
-                .collect::<Vec<_>>()
-        })
-        .unwrap_or_default();
-    urls.sort();
-    urls
+        .map(|arr| arr.iter().filter(|v| v.as_str().is_some()).count())
+        .unwrap_or_default()
 }
 
 #[cfg(test)]
