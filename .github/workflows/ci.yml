@@ -14,7 +14,24 @@ jobs:
   diesel-migrations:
     uses: ./.github/workflows/diesel-test.yml
 
+  rust-tests:
+    runs-on: ubuntu-latest
+    env:
+      DISCORD_TOKEN: test-token
+      DATABASE_URL: postgres://test:test@localhost:5432/testdb
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Install Rust
+      uses: actions-rust-lang/setup-rust-toolchain@v1
+
+    - name: Run unit tests
+      run: cargo test --locked
+
   build:
+    needs: [diesel-migrations, rust-tests]
     runs-on: ubuntu-latest
 
     steps:
