@@ -331,3 +331,39 @@ fn get_place_name_from_url(url: &str) -> Option<String> {
         None => Some("Unknown Place".to_string()),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::get_place_name_from_url;
+
+    #[test]
+    fn get_place_name_from_url_decodes_encoded_characters() {
+        let url = "https://www.google.com/maps/place/Caf%C3%A9+de+Flore/@48.854,2.333,17z";
+        assert_eq!(get_place_name_from_url(url), Some("Café de Flore".to_string()));
+    }
+
+    #[test]
+    fn get_place_name_from_url_returns_none_for_non_place_urls() {
+        let url = "https://www.google.com/maps/search/coffee/@48.854,2.333,17z";
+        assert_eq!(get_place_name_from_url(url), None);
+    }
+
+    #[test]
+    fn get_place_name_from_url_falls_back_for_invalid_encoding() {
+        let url = "https://www.google.com/maps/place/%E0%A4%A/@48.854,2.333,17z";
+        assert_eq!(get_place_name_from_url(url), Some("Unknown Place".to_string()));
+    }
+
+    #[test]
+    fn get_place_name_from_url_decodes_symbols_and_spaces() {
+        let url = "https://www.google.com/maps/place/AT%26T+Store/@40.0,-73.0,16z";
+        assert_eq!(get_place_name_from_url(url), Some("AT&T Store".to_string()));
+    }
+
+    #[test]
+    fn get_place_name_from_url_returns_none_when_at_segment_is_missing() {
+        let url = "https://www.google.com/maps/place/Cafe+Noir";
+        assert_eq!(get_place_name_from_url(url), None);
+    }
+}
+

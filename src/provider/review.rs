@@ -188,3 +188,104 @@ fn extract_picture_count(pictures: &serde_json::Value) -> usize {
         .map(|arr| arr.iter().filter(|v| v.as_str().is_some()).count())
         .unwrap_or_default()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{extract_picture_count, is_new_review_different};
+    use crate::models::{NewReview, Review};
+    use chrono::Utc;
+    use serde_json::json;
+
+    fn review_with(pictures: serde_json::Value, stars: i32, original_text: Option<&str>) -> Review {
+        Review {
+            id: 1,
+            place_name: "Place".to_string(),
+            text: "Text".to_string(),
+            original_text: original_text.map(str::to_string),
+            stars,
+            user_id: 42,
+            found_at: Utc::now().naive_utc(),
+            link_en: Some("https://example.com".to_string()),
+            pictures,
+        }
+    }
+
+    fn new_review_with(
+        pictures: serde_json::Value,
+        stars: i32,
+        original_text: Option<&str>,
+    ) -> NewReview {
+        NewReview {
+            place_name: "Place".to_string(),
+            text: "Text".to_string(),
+            original_text: original_text.map(str::to_string),
+            stars,
+            user_id: 42,
+            link_en: "https://example.com/new".to_string(),
+            pictures,
+        }
+    }
+
+    #[test]
+    fn extract_picture_count_counts_only_string_urls() {
+        let pictures = json!(["a", 1, null, "b", { "x": true }]);
+        assert_eq!(extract_picture_count(&pictures), 2);
+    }
+
+    #[test]
+    fn extract_picture_count_returns_zero_for_non_array_values() {
+        assert_eq!(extract_picture_count(&json!(null)), 0);
+        assert_eq!(extract_picture_count(&json!({ "pictures": [] })), 0);
+    }
+
+    #[test]
+    fn is_new_review_different_ignores_picture_url_changes_if_count_matches() {
+        let current = review_with(json!(["https://old/1", "https://old/2"]), 5, Some("hola"));
+        let new = new_review_with(json!(["https://new/a", "https://new/b"]), 5, Some("hola"));
+
+        assert!(!is_new_review_different(&current, &new));
+    }
+
+    #[test]
+    fn is_new_review_different_detects_star_change() {
+        let current = review_with(json!(["https://img/1"]), 4, Some("same"));
+        let new = new_review_with(json!(["https://img/2"]), 5, Some("same"));
+
+        assert!(is_new_review_different(&current, &new));
+    }
+
+    #[test]
+    fn is_new_review_different_detects_place_name_change() {
+        let current = review_with(json!(["https://img/1"]), 5, Some("same"));
+        let mut new = new_review_with(json!(["https://img/2"]), 5, Some("same"));
+        new.place_name = "Another Place".to_string();
+
+        assert!(is_new_review_different(&current, &new));
+    }
+
+    #[test]
+    fn is_new_review_different_detects_original_text_change() {
+        let current = review_with(json!(["https://img/1"]), 5, None);
+        let new = new_review_with(json!(["https://img/2"]), 5, Some("original text"));
+
+        assert!(is_new_review_different(&current, &new));
+    }
+
+    #[test]
+    fn is_new_review_different_detects_picture_count_change() {
+        let current = review_with(json!(["https://img/1"]), 5, Some("same"));
+        let new = new_review_with(json!(["https://img/a", "https://img/b"]), 5, Some("same"));
+
+        assert!(is_new_review_different(&current, &new));
+    }
+
+    #[test]
+    fn is_new_review_different_ignores_translated_text_change_only() {
+        let current = review_with(json!(["https://img/1"]), 5, Some("same"));
+        let mut new = new_review_with(json!(["https://img/a"]), 5, Some("same"));
+        new.text = "Different translated text".to_string();
+
+        assert!(!is_new_review_different(&current, &new));
+    }
+}
+
