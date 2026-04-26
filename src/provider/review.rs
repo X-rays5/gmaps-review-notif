@@ -94,13 +94,11 @@ fn save_new_review(new_review: &NewReview) -> Option<ReviewWithUser> {
     };
 
     // Shorten picture URLs
-    let shortened_pictures = match tokio::task::block_in_place(|| {
+    let shortened_pictures = tokio::task::block_in_place(|| {
         tokio::runtime::Handle::current().block_on(async {
             shorten_picture_urls_async(&new_review.pictures).await
         })
-    }) {
-        pictures => pictures,
-    };
+    });
 
     // Create a modified review with shortened URLs
     let mut modified_review = new_review.clone();
@@ -245,6 +243,8 @@ async fn shorten_picture_urls_async(pictures: &serde_json::Value) -> serde_json:
                             shortened_urls.push(serde_json::Value::String(url_str.to_string()));
                         }
                     }
+                } else {
+                    shortened_urls.push(v.clone());
                 }
             }
             serde_json::Value::Array(shortened_urls)
@@ -255,7 +255,7 @@ async fn shorten_picture_urls_async(pictures: &serde_json::Value) -> serde_json:
 
 #[cfg(test)]
 mod tests {
-    use super::{extract_picture_count, is_new_review_different};
+    use super::{extract_picture_count, is_new_review_different, shorten_picture_urls_async};
     use crate::models::{NewReview, Review};
     use chrono::Utc;
     use serde_json::json;
@@ -350,6 +350,35 @@ mod tests {
         new.text = "Different translated text".to_string();
 
         assert!(!is_new_review_different(&current, &new));
+    }
+
+    #[tokio::test]
+    async fn shorten_picture_urls_preserves_non_string_elements() {
+        let pictures = json!(["not-a-valid-url", 42, null, { "x": true }, "also-not-valid"]);
+        let result = shorten_picture_urls_async(&pictures).await;
+        let arr = result.as_array().expect("result should be an array");
+        assert_eq!(arr.len(), 5);
+        // Non-string values should be preserved as-is
+        assert_eq!(arr[1], json!(42));
+        assert_eq!(arr[2], json!(null));
+        assert_eq!(arr[3], json!({ "x": true }));
+        // Invalid URL strings fall back to the original string value
+        assert_eq!(arr[0], json!("not-a-valid-url"));
+        assert_eq!(arr[4], json!("also-not-valid"));
+    }
+
+    #[tokio::test]
+    async fn shorten_picture_urls_returns_clone_for_non_array() {
+        let pictures = json!({ "url": "https://example.com" });
+        let result = shorten_picture_urls_async(&pictures).await;
+        assert_eq!(result, pictures);
+    }
+
+    #[tokio::test]
+    async fn shorten_picture_urls_returns_empty_array_unchanged() {
+        let pictures = json!([]);
+        let result = shorten_picture_urls_async(&pictures).await;
+        assert_eq!(result, pictures);
     }
 }
 
