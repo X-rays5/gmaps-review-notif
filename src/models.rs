@@ -38,7 +38,7 @@ pub struct Review {
     pub pictures: JsonValue,
 }
 
-#[derive(Insertable, Debug)]
+#[derive(Insertable, Debug, Clone)]
 #[diesel(table_name = reviews)]
 #[diesel(check_for_backend(diesel::pg::Pg))]
 pub struct NewReview {

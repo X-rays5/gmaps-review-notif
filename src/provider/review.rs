@@ -3,7 +3,9 @@ use crate::provider::db::DbConnection;
 use crate::provider::user::{get_user_from_db_id, gmaps_user_id_to_db_id};
 use crate::schema::reviews;
 use crate::schema::users;
+use crate::utility::shorten::shorten_url;
 use diesel::prelude::*;
+use reqwest::Url;
 
 pub fn get_latest_review_for_user_gmaps_id(gmaps_id: &str) -> Option<ReviewWithUser> {
     get_latest_review_for_user(gmaps_user_id_to_db_id(gmaps_id)?)
@@ -72,21 +74,52 @@ fn fetch_latest_review(user: &User) -> Option<NewReview> {
 fn save_new_review(new_review: &NewReview) -> Option<ReviewWithUser> {
     let mut conn = get_connection()?;
 
+    // Shorten the review URL
+    let shortened_url = match Url::parse(&new_review.link_en) {
+        Ok(url) => match tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async {
+                shorten_url(&url).await
+            })
+        }) {
+            Ok(shortened) => shortened,
+            Err(e) => {
+                tracing::warn!("Failed to shorten review URL: {}, using original URL", e);
+                new_review.link_en.clone()
+            }
+        },
+        Err(e) => {
+            tracing::warn!("Failed to parse review URL: {}, using original URL", e);
+            new_review.link_en.clone()
+        }
+    };
+
+    // Shorten picture URLs
+    let shortened_pictures = tokio::task::block_in_place(|| {
+        tokio::runtime::Handle::current().block_on(async {
+            shorten_picture_urls_async(&new_review.pictures).await
+        })
+    });
+
+    // Create a modified review with shortened URLs
+    let mut modified_review = new_review.clone();
+    modified_review.link_en = shortened_url;
+    modified_review.pictures = shortened_pictures;
+
     match conn.transaction::<_, diesel::result::Error, _>(|conn| {
-        diesel::delete(reviews::table.filter(reviews::user_id.eq(new_review.user_id)))
+        diesel::delete(reviews::table.filter(reviews::user_id.eq(modified_review.user_id)))
             .execute(conn)?;
 
         diesel::insert_into(reviews::table)
-            .values(new_review)
+            .values(&modified_review)
             .execute(conn)?;
 
         let saved_review = reviews::table
-            .filter(reviews::user_id.eq(new_review.user_id))
+            .filter(reviews::user_id.eq(modified_review.user_id))
             .order(reviews::found_at.desc())
             .first::<Review>(conn)?;
 
         let user = users::table
-            .filter(users::id.eq(new_review.user_id))
+            .filter(users::id.eq(modified_review.user_id))
             .first::<User>(conn)?;
 
         Ok(ReviewWithUser {
@@ -189,9 +222,40 @@ fn extract_picture_count(pictures: &serde_json::Value) -> usize {
         .unwrap_or_default()
 }
 
+async fn shorten_picture_urls_async(pictures: &serde_json::Value) -> serde_json::Value {
+    match pictures.as_array() {
+        Some(arr) => {
+            let mut shortened_urls = Vec::new();
+            for v in arr.iter() {
+                if let Some(url_str) = v.as_str() {
+                    match Url::parse(url_str) {
+                        Ok(url) => match shorten_url(&url).await {
+                            Ok(shortened) => {
+                                shortened_urls.push(serde_json::Value::String(shortened));
+                            }
+                            Err(e) => {
+                                tracing::warn!("Failed to shorten picture URL: {}, using original URL", e);
+                                shortened_urls.push(serde_json::Value::String(url_str.to_string()));
+                            }
+                        },
+                        Err(e) => {
+                            tracing::warn!("Failed to parse picture URL: {}, using original URL", e);
+                            shortened_urls.push(serde_json::Value::String(url_str.to_string()));
+                        }
+                    }
+                } else {
+                    shortened_urls.push(v.clone());
+                }
+            }
+            serde_json::Value::Array(shortened_urls)
+        }
+        None => pictures.clone(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{extract_picture_count, is_new_review_different};
+    use super::{extract_picture_count, is_new_review_different, shorten_picture_urls_async};
     use crate::models::{NewReview, Review};
     use chrono::Utc;
     use serde_json::json;
@@ -286,6 +350,35 @@ mod tests {
         new.text = "Different translated text".to_string();
 
         assert!(!is_new_review_different(&current, &new));
+    }
+
+    #[tokio::test]
+    async fn shorten_picture_urls_preserves_non_string_elements() {
+        let pictures = json!(["not-a-valid-url", 42, null, { "x": true }, "also-not-valid"]);
+        let result = shorten_picture_urls_async(&pictures).await;
+        let arr = result.as_array().expect("result should be an array");
+        assert_eq!(arr.len(), 5);
+        // Non-string values should be preserved as-is
+        assert_eq!(arr[1], json!(42));
+        assert_eq!(arr[2], json!(null));
+        assert_eq!(arr[3], json!({ "x": true }));
+        // Invalid URL strings fall back to the original string value
+        assert_eq!(arr[0], json!("not-a-valid-url"));
+        assert_eq!(arr[4], json!("also-not-valid"));
+    }
+
+    #[tokio::test]
+    async fn shorten_picture_urls_returns_clone_for_non_array() {
+        let pictures = json!({ "url": "https://example.com" });
+        let result = shorten_picture_urls_async(&pictures).await;
+        assert_eq!(result, pictures);
+    }
+
+    #[tokio::test]
+    async fn shorten_picture_urls_returns_empty_array_unchanged() {
+        let pictures = json!([]);
+        let result = shorten_picture_urls_async(&pictures).await;
+        assert_eq!(result, pictures);
     }
 }
 
