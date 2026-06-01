@@ -155,7 +155,7 @@ fn is_review_past_age_limit(review: &Review) -> bool {
 fn is_new_review_different(current: &Review, new: &NewReview) -> bool {
     let place_name_changed = current.place_name != new.place_name;
     let stars_changed = current.stars != new.stars;
-    let original_text_changed = current.original_text != new.original_text;
+    let original_text_changed = if new.original_text.is_some() { current.original_text != new.original_text } else { false };
 
     // Compare pictures by count only because URLs are not stable.
     let current_pic_count = extract_picture_count(&current.pictures);
@@ -200,8 +200,7 @@ fn is_new_review_different(current: &Review, new: &NewReview) -> bool {
         }
         if pictures_changed {
             change_details.push(format!(
-                "picture_count: {} -> {}",
-                current_pic_count, new_pic_count
+                "picture_count: {current_pic_count} -> {new_pic_count}"
             ));
         }
 
@@ -226,7 +225,7 @@ async fn shorten_picture_urls_async(pictures: &serde_json::Value) -> serde_json:
     match pictures.as_array() {
         Some(arr) => {
             let mut shortened_urls = Vec::new();
-            for v in arr.iter() {
+            for v in arr {
                 if let Some(url_str) = v.as_str() {
                     match Url::parse(url_str) {
                         Ok(url) => match shorten_url(&url).await {

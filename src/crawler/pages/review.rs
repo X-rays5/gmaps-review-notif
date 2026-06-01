@@ -146,7 +146,7 @@ fn retrieve_review_text(tab: &Tab) -> ReviewText {
     tracing::debug!("Retrieved review text element");
 
     let show_original_button = tab.find_element_by_xpath(
-        r#"//button[contains(@role, "switch")]/span[contains(text(), "original")]"#,
+        r#"//button[contains(@role, "switch")]/span[contains(text(), "original")]/.."#,
     );
     let original_review_text = match show_original_button {
         Ok(button) => {
