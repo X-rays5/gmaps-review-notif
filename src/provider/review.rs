@@ -155,7 +155,7 @@ fn is_review_past_age_limit(review: &Review) -> bool {
 fn is_new_review_different(current: &Review, new: &NewReview) -> bool {
     let place_name_changed = current.place_name != new.place_name;
     let stars_changed = current.stars != new.stars;
-    let original_text_changed = if new.original_text.is_some() { current.original_text != new.original_text } else { false };
+    let original_text_changed = new.original_text.is_some() && current.original_text != new.original_text;
 
     // Compare pictures by count only because URLs are not stable.
     let current_pic_count = extract_picture_count(&current.pictures);
