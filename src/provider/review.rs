@@ -18,6 +18,26 @@ pub fn check_for_new_review(user: &User) -> Option<ReviewWithUser> {
     }
 
     let latest_review = fetch_latest_review(user)?;
+    if !is_new_review_different(&old_review.review, &latest_review) {
+        return None;
+    }
+
+    let should_notify = should_notify_channel_for_review_change(&old_review.review, &latest_review);
+    let saved_review = save_new_review(&latest_review);
+    if should_notify {
+        saved_review
+    } else {
+        None
+    }
+}
+
+fn check_for_updated_review(user: &User) -> Option<ReviewWithUser> {
+    let Some(old_review) = get_latest_review_from_db(user.id) else { return fetch_and_save_latest_review(user) };
+    if !is_review_past_age_limit(&old_review.review) {
+        return None;
+    }
+
+    let latest_review = fetch_latest_review(user)?;
     if is_new_review_different(&old_review.review, &latest_review) {
         save_new_review(&latest_review)
     } else {
@@ -38,7 +58,7 @@ pub fn get_latest_review_for_user(user_id: i32) -> Option<ReviewWithUser> {
         return None;
     };
 
-    match check_for_new_review(&user) {
+    match check_for_updated_review(&user) {
         Some(new_user) => Some(new_user),
         None => latest_in_db
     }
@@ -167,6 +187,10 @@ fn is_new_review_different(current: &Review, new: &NewReview) -> bool {
         return false;
     }
 
+    fn should_notify_channel_for_review_change(current: &Review, new: &NewReview) -> bool {
+        current.place_name != new.place_name
+    }
+
     if tracing::enabled!(tracing::Level::INFO) {
         let mut changed_fields = Vec::new();
         if place_name_changed {
@@ -254,7 +278,10 @@ async fn shorten_picture_urls_async(pictures: &serde_json::Value) -> serde_json:
 
 #[cfg(test)]
 mod tests {
-    use super::{extract_picture_count, is_new_review_different, shorten_picture_urls_async};
+    use super::{
+        extract_picture_count, is_new_review_different, shorten_picture_urls_async,
+        should_notify_channel_for_review_change,
+    };
     use crate::models::{NewReview, Review};
     use chrono::Utc;
     use serde_json::json;
@@ -351,6 +378,23 @@ mod tests {
         assert!(!is_new_review_different(&current, &new));
     }
 
+    #[test]
+    fn should_notify_channel_for_review_change_when_place_changes() {
+        let current = review_with(json!(["https://img/1"]), 5, Some("same"));
+        let mut new = new_review_with(json!(["https://img/a"]), 5, Some("same"));
+        new.place_name = "Different Place".to_string();
+
+        assert!(should_notify_channel_for_review_change(&current, &new));
+    }
+
+    #[test]
+    fn should_notify_channel_for_review_change_ignores_non_place_changes() {
+        let current = review_with(json!(["https://img/1"]), 4, Some("same"));
+        let new = new_review_with(json!(["https://img/a", "https://img/b"]), 5, Some("changed"));
+
+        assert!(!should_notify_channel_for_review_change(&current, &new));
+    }
+
     #[tokio::test]
     async fn shorten_picture_urls_preserves_non_string_elements() {
         let pictures = json!(["not-a-valid-url", 42, null, { "x": true }, "also-not-valid"]);
@@ -380,4 +424,3 @@ mod tests {
         assert_eq!(result, pictures);
     }
 }
-
