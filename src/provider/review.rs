@@ -187,10 +187,6 @@ fn is_new_review_different(current: &Review, new: &NewReview) -> bool {
         return false;
     }
 
-    fn should_notify_channel_for_review_change(current: &Review, new: &NewReview) -> bool {
-        current.place_name != new.place_name
-    }
-
     if tracing::enabled!(tracing::Level::INFO) {
         let mut changed_fields = Vec::new();
         if place_name_changed {
@@ -236,6 +232,10 @@ fn is_new_review_different(current: &Review, new: &NewReview) -> bool {
         );
     }
     true
+}
+
+fn should_notify_channel_for_review_change(current: &Review, new: &NewReview) -> bool {
+    current.place_name != new.place_name
 }
 
 fn extract_picture_count(pictures: &serde_json::Value) -> usize {
