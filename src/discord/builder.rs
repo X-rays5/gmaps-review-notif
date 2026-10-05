@@ -20,6 +20,27 @@ pub async fn build(token: String) -> Result<serenity::Client> {
                     Ok(())
                 })
             },
+            on_error: |error| {
+                Box::pin(async move {
+                    if let poise::FrameworkError::Command { error, ctx, .. } = &error {
+                        // Invocation (command + args) is already logged at INFO by `log_interaction`;
+                        // here we only record that it failed and where.
+                        tracing::error!(
+                            command = %ctx.command().qualified_name,
+                            discord_user = %ctx.author().name,
+                            discord_user_id = ctx.author().id.get(),
+                            guild_id = ?ctx.guild_id().map(|id| id.get()),
+                            channel_id = ctx.channel_id().get(),
+                            error = %error,
+                            "Command failed"
+                        );
+                    }
+
+                    if let Err(e) = poise::builtins::on_error(error).await {
+                        tracing::error!(error = %e, "Failed to report command error to the user");
+                    }
+                })
+            },
             ..Default::default()
         })
         .setup(|ctx, _ready, framework| {
@@ -57,17 +78,57 @@ fn log_interaction(
     _framework: poise::FrameworkContext<'_, (), Error>,
     _data: &(),
 ) {
-    if let serenity::FullEvent::InteractionCreate { interaction } = event {
-        if interaction.kind() == InteractionType::Command {
-            let interaction = interaction.as_command().unwrap();
-            tracing::info!(
-                "Slash command: user='{}({})', guild='{}', channel='{}', command='{}'",
-                interaction.user.name,
-                interaction.user.id,
-                interaction.guild_id.unwrap().get(),
-                interaction.channel.clone().unwrap().id.get(),
-                interaction.data.name
-            );
-        }
+    let serenity::FullEvent::InteractionCreate { interaction } = event else {
+        return;
+    };
+    if interaction.kind() != InteractionType::Command {
+        return;
+    }
+    let Some(command) = interaction.as_command() else {
+        return;
+    };
+
+    tracing::info!(
+        command = %command.data.name,
+        args = %format_command_args(&command.data.options),
+        discord_user = %command.user.name,
+        discord_user_id = command.user.id.get(),
+        guild_id = ?command.guild_id.map(|id| id.get()),
+        channel_id = ?command.channel.as_ref().map(|channel| channel.id.get()),
+        "Slash command received"
+    );
+}
+
+/// Renders command options as a compact `name=value name=[subcommand…]` string for logging.
+fn format_command_args(options: &[serenity::CommandDataOption]) -> String {
+    options
+        .iter()
+        .map(|option| match &option.value {
+            serenity::CommandDataOptionValue::SubCommand(inner)
+            | serenity::CommandDataOptionValue::SubCommandGroup(inner) => {
+                format!("{}=[{}]", option.name, format_command_args(inner))
+            }
+            value => format!("{}={}", option.name, format_command_arg(value)),
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn format_command_arg(value: &serenity::CommandDataOptionValue) -> String {
+    match value {
+        serenity::CommandDataOptionValue::Autocomplete { value, .. } => value.clone(),
+        serenity::CommandDataOptionValue::Boolean(value) => value.to_string(),
+        serenity::CommandDataOptionValue::Integer(value) => value.to_string(),
+        serenity::CommandDataOptionValue::Number(value) => value.to_string(),
+        serenity::CommandDataOptionValue::String(value) => value.clone(),
+        serenity::CommandDataOptionValue::Attachment(id) => id.get().to_string(),
+        serenity::CommandDataOptionValue::Channel(id) => id.get().to_string(),
+        serenity::CommandDataOptionValue::Mentionable(id) => id.get().to_string(),
+        serenity::CommandDataOptionValue::Role(id) => id.get().to_string(),
+        serenity::CommandDataOptionValue::User(id) => id.get().to_string(),
+        serenity::CommandDataOptionValue::Unknown(kind) => format!("unknown({kind})"),
+        // Subcommands are handled by `format_command_args`; this is a safety net for
+        // future/unknown option kinds.
+        other => format!("{other:?}"),
     }
 }

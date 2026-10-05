@@ -1,60 +1,139 @@
-use crate::models::{NewReview, Review, ReviewWithUser, User};
-use crate::provider::db::DbConnection;
+use crate::models::{NewReview, NewSeenReview, Review, ReviewWithUser, User};
+use crate::provider::db::get_connection;
 use crate::provider::user::{get_user_from_db_id, gmaps_user_id_to_db_id};
 use crate::schema::reviews;
+use crate::schema::seen_reviews;
 use crate::schema::users;
 use crate::utility::shorten::shorten_url;
 use diesel::prelude::*;
 use reqwest::Url;
+use sha2::{Digest, Sha256};
 
 pub fn get_latest_review_for_user_gmaps_id(gmaps_id: &str) -> Option<ReviewWithUser> {
     get_latest_review_for_user(gmaps_user_id_to_db_id(gmaps_id)?)
 }
 
+/// Finds a new review for a user and reports it to the channel it is followed in.
+///
+/// Scheduled checks only notify when the review is for a different place; the other changes
+/// (stars, pictures or text on the place we already know) refresh what we store without pinging
+/// the channel.
 pub fn check_for_new_review(user: &User) -> Option<ReviewWithUser> {
-    let Some(old_review) = get_latest_review_from_db(user.id) else { return fetch_and_save_latest_review(user) };
-    if !is_review_past_age_limit(&old_review.review) {
-        return None;
-    }
-
-    let latest_review = fetch_latest_review(user)?;
-    if !is_new_review_different(&old_review.review, &latest_review) {
-        return None;
-    }
-
-    let should_notify = should_notify_channel_for_review_change(&old_review.review, &latest_review);
-    let saved_review = save_new_review(&latest_review);
-    if should_notify {
-        saved_review
-    } else {
-        None
+    match check_review(user) {
+        ReviewCheck::Nothing => None,
+        ReviewCheck::FirstReview(review) => Some(review),
+        ReviewCheck::Replaced { old, new } => {
+            let should_notify = should_notify_channel_for_review_change(&old, &new);
+            let saved_review = save_new_review(&new);
+            if should_notify {
+                saved_review
+            } else {
+                tracing::debug!(
+                    db_user_id = user.id,
+                    gmaps_id = %user.gmaps_id,
+                    place_name = %old.place_name,
+                    "Review changed but the place did not; stored without notifying"
+                );
+                None
+            }
+        }
     }
 }
 
+/// Same as [`check_for_new_review`], but reports any change to the stored review. Used where the
+/// review is being fetched on demand (e.g. right after a user is followed).
 fn check_for_updated_review(user: &User) -> Option<ReviewWithUser> {
-    let Some(old_review) = get_latest_review_from_db(user.id) else { return fetch_and_save_latest_review(user) };
+    match check_review(user) {
+        ReviewCheck::Nothing => None,
+        ReviewCheck::FirstReview(review) => Some(review),
+        ReviewCheck::Replaced { new, .. } => save_new_review(&new),
+    }
+}
+
+/// What a single review check produced for one user.
+enum ReviewCheck {
+    /// Nothing to report.
+    Nothing,
+    /// The user's first stored review; always worth reporting.
+    FirstReview(ReviewWithUser),
+    /// A different review was found; the caller decides whether it is worth notifying about.
+    Replaced { old: Review, new: NewReview },
+}
+
+/// The part a check shares whichever way it reports: freshness, the "already seen" gate and the
+/// change test. Nothing is written to the database here.
+fn check_review(user: &User) -> ReviewCheck {
+    let Some(old_review) = get_latest_review_from_db(user.id) else {
+        tracing::debug!(db_user_id = user.id, gmaps_id = %user.gmaps_id, "No stored review yet; fetching first review");
+        return match fetch_and_save_latest_review(user) {
+            Some(review) => ReviewCheck::FirstReview(review),
+            None => ReviewCheck::Nothing,
+        };
+    };
     if !is_review_past_age_limit(&old_review.review) {
-        return None;
+        tracing::debug!(
+            db_user_id = user.id,
+            gmaps_id = %user.gmaps_id,
+            found_at = %old_review.review.found_at,
+            "Stored review is still fresh; skipping check"
+        );
+        return ReviewCheck::Nothing;
     }
 
-    let latest_review = fetch_latest_review(user)?;
-    if is_new_review_different(&old_review.review, &latest_review) {
-        save_new_review(&latest_review)
-    } else {
-        None
+    // Make sure the review we currently hold is remembered, so a crawl that returns it
+    // (or any review we have already seen) is not mistaken for a new review.
+    remember_review(&old_review.review);
+
+    let Some(latest_review) = fetch_latest_review(user) else {
+        return ReviewCheck::Nothing;
+    };
+
+    // The crawler sometimes falls back to an older review (e.g. a page still loading). If we
+    // have seen this review before it is not new, so never report it as one.
+    if is_review_already_seen(user.id, &latest_review) {
+        tracing::info!(
+            db_user_id = user.id,
+            gmaps_id = %user.gmaps_id,
+            place_name = %latest_review.place_name,
+            "Crawled review has already been seen before, likely an older review; skipping"
+        );
+        return ReviewCheck::Nothing;
+    }
+
+    if !is_new_review_different(&old_review.review, &latest_review) {
+        tracing::debug!(
+            db_user_id = user.id,
+            gmaps_id = %user.gmaps_id,
+            "Crawled review is unchanged from the stored one; skipping"
+        );
+        return ReviewCheck::Nothing;
+    }
+
+    tracing::info!(
+        db_user_id = user.id,
+        gmaps_id = %user.gmaps_id,
+        place_name = %latest_review.place_name,
+        stars = latest_review.stars,
+        "New review detected"
+    );
+
+    ReviewCheck::Replaced {
+        old: old_review.review,
+        new: latest_review,
     }
 }
 
 pub fn get_latest_review_for_user(user_id: i32) -> Option<ReviewWithUser> {
     let latest_in_db = get_latest_review_from_db(user_id);
-    if let Some(latest) = latest_in_db.as_ref() {
-        if !is_review_past_age_limit(&latest.review) {
-            return latest_in_db;
-        }
+    if let Some(latest) = latest_in_db.as_ref()
+        && !is_review_past_age_limit(&latest.review)
+    {
+        tracing::debug!(db_user_id = user_id, review_id = latest.review.id, "Returning cached review (still fresh)");
+        return latest_in_db;
     }
 
     let Some(user) = get_user_from_db_id(user_id) else {
-        tracing::error!("Failed to get user from db: {}", user_id);
+        tracing::error!(db_user_id = user_id, "Failed to get user from db");
         return None;
     };
 
@@ -67,13 +146,19 @@ pub fn get_latest_review_for_user(user_id: i32) -> Option<ReviewWithUser> {
 fn get_latest_review_from_db(user_id: i32) -> Option<ReviewWithUser> {
     let mut conn = get_connection()?;
 
-    users::table
+    match users::table
         .inner_join(reviews::table)
         .filter(users::id.eq(user_id))
         .order(reviews::found_at.desc())
         .first::<(User, Review)>(&mut conn)
-        .map(|(user, review)| ReviewWithUser { user, review })
-        .ok()
+    {
+        Ok((user, review)) => Some(ReviewWithUser { user, review }),
+        Err(diesel::result::Error::NotFound) => None,
+        Err(e) => {
+            tracing::error!(db_user_id = user_id, error = %e, "Failed to load the latest review from the database");
+            None
+        }
+    }
 }
 
 fn fetch_and_save_latest_review(user: &User) -> Option<ReviewWithUser> {
@@ -85,7 +170,7 @@ fn fetch_latest_review(user: &User) -> Option<NewReview> {
     match crate::crawler::pages::review::get_latest_review_for_user(user) {
         Ok(r) => Some(r),
         Err(e) => {
-            tracing::error!("Failed to fetch latest review from Google Maps: {}", e);
+            tracing::error!(db_user_id = user.id, gmaps_id = %user.gmaps_id, error = %e, "Failed to fetch latest review from Google Maps");
             None
         }
     }
@@ -103,12 +188,12 @@ fn save_new_review(new_review: &NewReview) -> Option<ReviewWithUser> {
         }) {
             Ok(shortened) => shortened,
             Err(e) => {
-                tracing::warn!("Failed to shorten review URL: {}, using original URL", e);
+                tracing::warn!(db_user_id = new_review.user_id, error = %e, "Failed to shorten review URL, using original URL");
                 new_review.link_en.clone()
             }
         },
         Err(e) => {
-            tracing::warn!("Failed to parse review URL: {}, using original URL", e);
+            tracing::warn!(db_user_id = new_review.user_id, error = %e, "Failed to parse review URL, using original URL");
             new_review.link_en.clone()
         }
     };
@@ -133,6 +218,14 @@ fn save_new_review(new_review: &NewReview) -> Option<ReviewWithUser> {
             .values(&modified_review)
             .execute(conn)?;
 
+        diesel::insert_into(seen_reviews::table)
+            .values(&NewSeenReview {
+                user_id: modified_review.user_id,
+                hash: new_review_hash(&modified_review),
+            })
+            .on_conflict_do_nothing()
+            .execute(conn)?;
+
         let saved_review = reviews::table
             .filter(reviews::user_id.eq(modified_review.user_id))
             .order(reviews::found_at.desc())
@@ -147,19 +240,17 @@ fn save_new_review(new_review: &NewReview) -> Option<ReviewWithUser> {
             user,
         })
     }) {
-        Ok(result) => Some(result),
-        Err(e) => {
-            tracing::error!("Failed to save new review to database: {}", e);
-            None
+        Ok(result) => {
+            tracing::info!(
+                db_user_id = result.review.user_id,
+                review_id = result.review.id,
+                place_name = %result.review.place_name,
+                "Saved new review"
+            );
+            Some(result)
         }
-    }
-}
-
-fn get_connection() -> Option<DbConnection> {
-    match crate::provider::db::DbProvider::global().get_connection() {
-        Ok(c) => Some(c),
         Err(e) => {
-            tracing::error!("Failed to get database connection: {}", e);
+            tracing::error!(db_user_id = modified_review.user_id, error = %e, "Failed to save new review to database");
             None
         }
     }
@@ -187,7 +278,7 @@ fn is_new_review_different(current: &Review, new: &NewReview) -> bool {
         return false;
     }
 
-    if tracing::enabled!(tracing::Level::INFO) {
+    if tracing::enabled!(tracing::Level::DEBUG) {
         let mut changed_fields = Vec::new();
         if place_name_changed {
             changed_fields.push("place_name");
@@ -224,11 +315,11 @@ fn is_new_review_different(current: &Review, new: &NewReview) -> bool {
             ));
         }
 
-        tracing::info!(
-            user_id = new.user_id,
+        tracing::debug!(
+            db_user_id = new.user_id,
             changed_fields = ?changed_fields,
             changes = ?change_details,
-            "Detected new review differences"
+            "Detected review field differences"
         );
     }
     true
@@ -245,6 +336,67 @@ fn extract_picture_count(pictures: &serde_json::Value) -> usize {
         .unwrap_or_default()
 }
 
+/// The review's stable textual content: the original text when Google shows a translation,
+/// otherwise the displayed text. Comparing this stays consistent whether or not a translation
+/// happens to be available on a given crawl.
+fn review_content_key(review: &Review) -> &str {
+    review.original_text.as_deref().unwrap_or(review.text.as_str())
+}
+
+fn new_review_content_key(review: &NewReview) -> &str {
+    review.original_text.as_deref().unwrap_or(review.text.as_str())
+}
+
+/// SHA-256 over the review's title (place name) and body (text). Stars and pictures are
+/// deliberately excluded: stars are not part of a review's identity here, and picture count can
+/// vary between crawls (lazy loading) — either would produce false "new" hashes.
+fn compute_review_hash(place_name: &str, content: &str) -> Vec<u8> {
+    let mut hasher = Sha256::new();
+    hasher.update(place_name.as_bytes());
+    hasher.update([0u8]);
+    hasher.update(content.as_bytes());
+    hasher.finalize().to_vec()
+}
+
+fn review_hash(review: &Review) -> Vec<u8> {
+    compute_review_hash(&review.place_name, review_content_key(review))
+}
+
+fn new_review_hash(review: &NewReview) -> Vec<u8> {
+    compute_review_hash(&review.place_name, new_review_content_key(review))
+}
+
+/// Records a review's hash so we can recognize it (and never report it as new) in the future.
+fn remember_review(review: &Review) {
+    let Some(mut conn) = get_connection() else { return };
+    let seen_review = NewSeenReview {
+        user_id: review.user_id,
+        hash: review_hash(review),
+    };
+    if let Err(e) = diesel::insert_into(seen_reviews::table)
+        .values(&seen_review)
+        .on_conflict_do_nothing()
+        .execute(&mut conn)
+    {
+        tracing::error!(db_user_id = review.user_id, error = %e, "Failed to record seen review hash");
+    }
+}
+
+fn is_review_already_seen(user_id: i32, review: &NewReview) -> bool {
+    let Some(mut conn) = get_connection() else { return false };
+    seen_reviews::table
+        .filter(seen_reviews::user_id.eq(user_id))
+        .filter(seen_reviews::hash.eq(new_review_hash(review)))
+        .select(seen_reviews::id)
+        .first::<i32>(&mut conn)
+        .optional()
+        .map(|found| found.is_some())
+        .unwrap_or_else(|e| {
+            tracing::error!(db_user_id = user_id, error = %e, "Failed to check seen review hash");
+            false
+        })
+}
+
 async fn shorten_picture_urls_async(pictures: &serde_json::Value) -> serde_json::Value {
     match pictures.as_array() {
         Some(arr) => {
@@ -257,12 +409,12 @@ async fn shorten_picture_urls_async(pictures: &serde_json::Value) -> serde_json:
                                 shortened_urls.push(serde_json::Value::String(shortened));
                             }
                             Err(e) => {
-                                tracing::warn!("Failed to shorten picture URL: {}, using original URL", e);
+                                tracing::warn!(error = %e, "Failed to shorten picture URL, using original URL");
                                 shortened_urls.push(serde_json::Value::String(url_str.to_string()));
                             }
                         },
                         Err(e) => {
-                            tracing::warn!("Failed to parse picture URL: {}, using original URL", e);
+                            tracing::warn!(error = %e, "Failed to parse picture URL, using original URL");
                             shortened_urls.push(serde_json::Value::String(url_str.to_string()));
                         }
                     }
@@ -279,8 +431,8 @@ async fn shorten_picture_urls_async(pictures: &serde_json::Value) -> serde_json:
 #[cfg(test)]
 mod tests {
     use super::{
-        extract_picture_count, is_new_review_different, shorten_picture_urls_async,
-        should_notify_channel_for_review_change,
+        compute_review_hash, extract_picture_count, is_new_review_different, new_review_hash,
+        review_hash, should_notify_channel_for_review_change, shorten_picture_urls_async,
     };
     use crate::models::{NewReview, Review};
     use chrono::Utc;
@@ -320,6 +472,49 @@ mod tests {
     fn extract_picture_count_counts_only_string_urls() {
         let pictures = json!(["a", 1, null, "b", { "x": true }]);
         assert_eq!(extract_picture_count(&pictures), 2);
+    }
+
+    #[test]
+    fn compute_review_hash_is_deterministic_and_sha256_sized() {
+        let a = compute_review_hash("Place", "text");
+        let b = compute_review_hash("Place", "text");
+        assert_eq!(a, b);
+        assert_eq!(a.len(), 32);
+    }
+
+    #[test]
+    fn compute_review_hash_differs_for_different_title_or_body() {
+        let base = compute_review_hash("Place", "text");
+        assert_ne!(base, compute_review_hash("Other Place", "text"));
+        assert_ne!(base, compute_review_hash("Place", "different"));
+    }
+
+    #[test]
+    fn review_hash_ignores_stars() {
+        let stored = review_with(json!([]), 5, Some("hola"));
+        let fetched = new_review_with(json!([]), 1, Some("hola"));
+
+        assert_eq!(review_hash(&stored), new_review_hash(&fetched));
+    }
+
+    #[test]
+    fn review_hash_ignores_whether_translation_was_shown() {
+        // Same review, once stored with an original text (translation shown)...
+        let stored = review_with(json!([]), 5, Some("hola"));
+        // ...and once crawled without one (no translation offered, text is the original).
+        let mut fetched = new_review_with(json!([]), 5, None);
+        fetched.text = "hola".to_string();
+
+        assert_eq!(review_hash(&stored), new_review_hash(&fetched));
+    }
+
+    #[test]
+    fn review_hash_differs_for_different_text() {
+        let stored = review_with(json!([]), 5, None);
+        let mut fetched = new_review_with(json!([]), 5, None);
+        fetched.text = "a different review".to_string();
+
+        assert_ne!(review_hash(&stored), new_review_hash(&fetched));
     }
 
     #[test]

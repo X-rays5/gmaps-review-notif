@@ -6,13 +6,15 @@ use crate::crawler::pages::user::GMAPS_USER_URL;
 pub fn get_review_embed(review_with_user: &ReviewWithUser, original: bool) -> CreateEmbed {
     let review_body = select_review_body(review_with_user, original);
 
+    // Star counts are counted by the crawler and cannot be negative, but a repeat count must never
+    // be allowed to panic on unexpected input.
+    let star_repeat = usize::try_from(review_with_user.review.stars).unwrap_or_default();
+
     let mut embed = CreateEmbed::default()
         .title(review_with_user.review.place_name.clone())
         .field(
             "Stars",
-            crate::config::get_config()
-                .star_text
-                .repeat(review_with_user.review.stars.try_into().unwrap()),
+            crate::config::get_config().star_text.repeat(star_repeat),
             false,
         )
         .author(CreateEmbedAuthor::new(review_with_user.user.name.clone()).url(GMAPS_USER_URL.replace("{}", review_with_user.user.gmaps_id.as_str())))
@@ -22,8 +24,8 @@ pub fn get_review_embed(review_with_user: &ReviewWithUser, original: bool) -> Cr
             crate::config::get_config().review_age_limit_hours
         )));
 
-    if review_with_user.review.link_en.is_some() {
-        embed = embed.url(review_with_user.review.link_en.clone().unwrap());
+    if let Some(link) = review_with_user.review.link_en.as_ref() {
+        embed = embed.url(link.clone());
     }
 
     let valid_pictures = collect_valid_pictures(&review_with_user.review.pictures);
@@ -32,7 +34,7 @@ pub fn get_review_embed(review_with_user: &ReviewWithUser, original: bool) -> Cr
     embed
 }
 
-fn select_review_body<'a>(review_with_user: &'a ReviewWithUser, original: bool) -> &'a str {
+fn select_review_body(review_with_user: &ReviewWithUser, original: bool) -> &str {
     if original {
         review_with_user
             .review

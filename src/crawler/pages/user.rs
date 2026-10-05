@@ -53,6 +53,6 @@ fn open_user_page(tab: &headless_chrome::Tab, user_id: &str) -> Result<()> {
         }
     }
 
-    tracing::info!("Successfully loaded user page for user_id: {}, url: {}", user_id, tab.get_url());
+    tracing::debug!(gmaps_id = %user_id, url = %tab.get_url(), "Loaded user page");
     Ok(())
 }

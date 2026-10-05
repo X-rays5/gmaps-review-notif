@@ -130,28 +130,29 @@ pub fn wait_for_url_regex(
 pub fn wait_dom_ready(tab: &headless_chrome::Tab, timeout_ms: u64) -> Result<()> {
     tracing::debug!("Waiting for DOM ready");
     let start = std::time::Instant::now();
-    while !tab
-        .evaluate("document.readyState", false)?
-        .value
-        .unwrap()
-        .as_str()
-        .unwrap()
-        .eq("complete")
-    {
+    let mut ready_state = document_ready_state(tab)?;
+    while ready_state != "complete" {
         if start.elapsed().as_millis() > u128::from(timeout_ms) {
-            tracing::debug!(
-                "Current readyState: {}",
-                tab.evaluate("document.readyState", false)?
-                    .value
-                    .unwrap()
-                    .as_str()
-                    .unwrap()
-            );
+            tracing::debug!(ready_state = %ready_state, "Timed out waiting for the DOM to be ready");
             return Err(anyhow::anyhow!("Timeout waiting for DOM ready"));
         }
         std::thread::sleep(Duration::from_millis(100));
+        ready_state = document_ready_state(tab)?;
     }
 
     tracing::debug!("DOM is ready");
     Ok(())
+}
+
+/// Reads `document.readyState`. A missing or non-string result reads as "not ready" so the caller
+/// keeps waiting and eventually reports a timeout instead of failing on a surprise page value.
+fn document_ready_state(tab: &headless_chrome::Tab) -> Result<String> {
+    let evaluated = tab.evaluate("document.readyState", false)?;
+    let state = evaluated
+        .value
+        .as_ref()
+        .and_then(|value| value.as_str())
+        .unwrap_or_default();
+
+    Ok(state.to_string())
 }

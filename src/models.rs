@@ -1,4 +1,4 @@
-use crate::schema::{following, reviews, users};
+use crate::schema::{following, reviews, seen_reviews, users};
 use chrono::NaiveDateTime;
 use diesel::prelude::*;
 use serde_json::Value as JsonValue;
@@ -58,6 +58,15 @@ pub struct ReviewWithUser {
     pub user: User,
     #[diesel(embed)]
     pub review: Review,
+}
+
+// --- SEEN REVIEW MODELS ---
+#[derive(Insertable, Debug)]
+#[diesel(table_name = seen_reviews)]
+#[diesel(check_for_backend(diesel::pg::Pg))]
+pub struct NewSeenReview {
+    pub user_id: i32,
+    pub hash: Vec<u8>,
 }
 
 // --- FOLLOWING MODELS ---

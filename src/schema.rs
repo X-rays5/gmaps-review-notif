@@ -37,7 +37,17 @@ diesel::table! {
     }
 }
 
+diesel::table! {
+    seen_reviews (id) {
+        id -> Int4,
+        user_id -> Int4,
+        hash -> Bytea,
+        first_seen_at -> Timestamp,
+    }
+}
+
 diesel::joinable!(following -> users (followed_user_id));
 diesel::joinable!(reviews -> users (user_id));
+diesel::joinable!(seen_reviews -> users (user_id));
 
-diesel::allow_tables_to_appear_in_same_query!(following, reviews, users,);
+diesel::allow_tables_to_appear_in_same_query!(following, reviews, seen_reviews, users,);
