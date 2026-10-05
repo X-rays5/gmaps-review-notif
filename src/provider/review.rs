@@ -13,10 +13,62 @@ pub fn get_latest_review_for_user_gmaps_id(gmaps_id: &str) -> Option<ReviewWithU
     get_latest_review_for_user(gmaps_user_id_to_db_id(gmaps_id)?)
 }
 
+/// Finds a new review for a user and reports it to the channel it is followed in.
+///
+/// Scheduled checks only notify when the review is for a different place; the other changes
+/// (stars, pictures or text on the place we already know) refresh what we store without pinging
+/// the channel.
 pub fn check_for_new_review(user: &User) -> Option<ReviewWithUser> {
+    match check_review(user) {
+        ReviewCheck::Nothing => None,
+        ReviewCheck::FirstReview(review) => Some(review),
+        ReviewCheck::Replaced { old, new } => {
+            let should_notify = should_notify_channel_for_review_change(&old, &new);
+            let saved_review = save_new_review(&new);
+            if should_notify {
+                saved_review
+            } else {
+                tracing::debug!(
+                    db_user_id = user.id,
+                    gmaps_id = %user.gmaps_id,
+                    place_name = %old.place_name,
+                    "Review changed but the place did not; stored without notifying"
+                );
+                None
+            }
+        }
+    }
+}
+
+/// Same as [`check_for_new_review`], but reports any change to the stored review. Used where the
+/// review is being fetched on demand (e.g. right after a user is followed).
+fn check_for_updated_review(user: &User) -> Option<ReviewWithUser> {
+    match check_review(user) {
+        ReviewCheck::Nothing => None,
+        ReviewCheck::FirstReview(review) => Some(review),
+        ReviewCheck::Replaced { new, .. } => save_new_review(&new),
+    }
+}
+
+/// What a single review check produced for one user.
+enum ReviewCheck {
+    /// Nothing to report.
+    Nothing,
+    /// The user's first stored review; always worth reporting.
+    FirstReview(ReviewWithUser),
+    /// A different review was found; the caller decides whether it is worth notifying about.
+    Replaced { old: Review, new: NewReview },
+}
+
+/// The part a check shares whichever way it reports: freshness, the "already seen" gate and the
+/// change test. Nothing is written to the database here.
+fn check_review(user: &User) -> ReviewCheck {
     let Some(old_review) = get_latest_review_from_db(user.id) else {
         tracing::debug!(db_user_id = user.id, gmaps_id = %user.gmaps_id, "No stored review yet; fetching first review");
-        return fetch_and_save_latest_review(user);
+        return match fetch_and_save_latest_review(user) {
+            Some(review) => ReviewCheck::FirstReview(review),
+            None => ReviewCheck::Nothing,
+        };
     };
     if !is_review_past_age_limit(&old_review.review) {
         tracing::debug!(
@@ -25,14 +77,16 @@ pub fn check_for_new_review(user: &User) -> Option<ReviewWithUser> {
             found_at = %old_review.review.found_at,
             "Stored review is still fresh; skipping check"
         );
-        return None;
+        return ReviewCheck::Nothing;
     }
 
     // Make sure the review we currently hold is remembered, so a crawl that returns it
     // (or any review we have already seen) is not mistaken for a new review.
     remember_review(&old_review.review);
 
-    let latest_review = fetch_latest_review(user)?;
+    let Some(latest_review) = fetch_latest_review(user) else {
+        return ReviewCheck::Nothing;
+    };
 
     // The crawler sometimes falls back to an older review (e.g. a page still loading). If we
     // have seen this review before it is not new, so never report it as one.
@@ -43,25 +97,29 @@ pub fn check_for_new_review(user: &User) -> Option<ReviewWithUser> {
             place_name = %latest_review.place_name,
             "Crawled review has already been seen before, likely an older review; skipping"
         );
-        return None;
+        return ReviewCheck::Nothing;
     }
 
-    if is_new_review_different(&old_review.review, &latest_review) {
-        tracing::info!(
-            db_user_id = user.id,
-            gmaps_id = %user.gmaps_id,
-            place_name = %latest_review.place_name,
-            stars = latest_review.stars,
-            "New review detected"
-        );
-        save_new_review(&latest_review)
-    } else {
+    if !is_new_review_different(&old_review.review, &latest_review) {
         tracing::debug!(
             db_user_id = user.id,
             gmaps_id = %user.gmaps_id,
             "Crawled review is unchanged from the stored one; skipping"
         );
-        None
+        return ReviewCheck::Nothing;
+    }
+
+    tracing::info!(
+        db_user_id = user.id,
+        gmaps_id = %user.gmaps_id,
+        place_name = %latest_review.place_name,
+        stars = latest_review.stars,
+        "New review detected"
+    );
+
+    ReviewCheck::Replaced {
+        old: old_review.review,
+        new: latest_review,
     }
 }
 
@@ -79,7 +137,7 @@ pub fn get_latest_review_for_user(user_id: i32) -> Option<ReviewWithUser> {
         return None;
     };
 
-    match check_for_new_review(&user) {
+    match check_for_updated_review(&user) {
         Some(new_user) => Some(new_user),
         None => latest_in_db
     }
@@ -208,7 +266,7 @@ fn is_review_past_age_limit(review: &Review) -> bool {
 fn is_new_review_different(current: &Review, new: &NewReview) -> bool {
     let place_name_changed = current.place_name != new.place_name;
     let stars_changed = current.stars != new.stars;
-    let original_text_changed = if new.original_text.is_some() { current.original_text != new.original_text } else { false };
+    let original_text_changed = new.original_text.is_some() && current.original_text != new.original_text;
 
     // Compare pictures by count only because URLs are not stable.
     let current_pic_count = extract_picture_count(&current.pictures);
@@ -265,6 +323,10 @@ fn is_new_review_different(current: &Review, new: &NewReview) -> bool {
         );
     }
     true
+}
+
+fn should_notify_channel_for_review_change(current: &Review, new: &NewReview) -> bool {
+    current.place_name != new.place_name
 }
 
 fn extract_picture_count(pictures: &serde_json::Value) -> usize {
@@ -370,7 +432,7 @@ async fn shorten_picture_urls_async(pictures: &serde_json::Value) -> serde_json:
 mod tests {
     use super::{
         compute_review_hash, extract_picture_count, is_new_review_different, new_review_hash,
-        review_hash, shorten_picture_urls_async,
+        review_hash, should_notify_channel_for_review_change, shorten_picture_urls_async,
     };
     use crate::models::{NewReview, Review};
     use chrono::Utc;
@@ -511,6 +573,23 @@ mod tests {
         assert!(!is_new_review_different(&current, &new));
     }
 
+    #[test]
+    fn should_notify_channel_for_review_change_when_place_changes() {
+        let current = review_with(json!(["https://img/1"]), 5, Some("same"));
+        let mut new = new_review_with(json!(["https://img/a"]), 5, Some("same"));
+        new.place_name = "Different Place".to_string();
+
+        assert!(should_notify_channel_for_review_change(&current, &new));
+    }
+
+    #[test]
+    fn should_notify_channel_for_review_change_ignores_non_place_changes() {
+        let current = review_with(json!(["https://img/1"]), 4, Some("same"));
+        let new = new_review_with(json!(["https://img/a", "https://img/b"]), 5, Some("changed"));
+
+        assert!(!should_notify_channel_for_review_change(&current, &new));
+    }
+
     #[tokio::test]
     async fn shorten_picture_urls_preserves_non_string_elements() {
         let pictures = json!(["not-a-valid-url", 42, null, { "x": true }, "also-not-valid"]);
@@ -540,4 +619,3 @@ mod tests {
         assert_eq!(result, pictures);
     }
 }
-

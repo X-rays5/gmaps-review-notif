@@ -10,8 +10,8 @@ RUN apt-get update && apt-get install -y \
 
 # Install Diesel CLI with PostgreSQL support only using cache mounts
 # Using specific version for reproducibility
-RUN --mount=type=cache,target=/usr/local/cargo/registry \
-    --mount=type=cache,target=/usr/local/cargo/git \
+RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
+    --mount=type=cache,target=/usr/local/cargo/git,sharing=locked \
     cargo install diesel_cli --version 2.3.0 --no-default-features --features postgres
 
 # Cargo chef stage for recipe generation
@@ -23,8 +23,8 @@ RUN apt-get update && apt-get install -y \
     libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
-RUN --mount=type=cache,target=/usr/local/cargo/registry \
-    --mount=type=cache,target=/usr/local/cargo/git \
+RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
+    --mount=type=cache,target=/usr/local/cargo/git,sharing=locked \
     cargo install cargo-chef --locked
 WORKDIR /app
 
@@ -48,8 +48,8 @@ RUN apt-get update && apt-get install -y \
 COPY --from=chef /usr/local/cargo/bin/cargo-chef /usr/local/cargo/bin/cargo-chef
 
 # Install sccache for compilation caching
-RUN --mount=type=cache,target=/usr/local/cargo/registry \
-    --mount=type=cache,target=/usr/local/cargo/git \
+RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
+    --mount=type=cache,target=/usr/local/cargo/git,sharing=locked \
     cargo install sccache --locked
 
 # Set up sccache as the compiler wrapper
@@ -61,8 +61,8 @@ WORKDIR /app
 COPY --from=planner /app/recipe.json recipe.json
 
 # Build dependencies using cargo-chef - this is the caching Docker layer!
-RUN --mount=type=cache,target=/usr/local/cargo/registry \
-    --mount=type=cache,target=/usr/local/cargo/git \
+RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
+    --mount=type=cache,target=/usr/local/cargo/git,sharing=locked \
     --mount=type=cache,target=/app/target \
     --mount=type=cache,target=/root/.cache/sccache \
     cargo chef cook --release --recipe-path recipe.json
@@ -74,8 +74,8 @@ COPY diesel.toml ./
 COPY Cargo.toml Cargo.lock build.rs ./
 
 # Build the application in release mode with the actual source
-RUN --mount=type=cache,target=/usr/local/cargo/registry \
-    --mount=type=cache,target=/usr/local/cargo/git \
+RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
+    --mount=type=cache,target=/usr/local/cargo/git,sharing=locked \
     --mount=type=cache,target=/app/target \
     --mount=type=cache,target=/root/.cache/sccache \
     cargo build --release && \
