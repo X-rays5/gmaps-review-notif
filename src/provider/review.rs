@@ -1,11 +1,13 @@
-use crate::models::{NewReview, Review, ReviewWithUser, User};
+use crate::models::{NewReview, NewSeenReview, Review, ReviewWithUser, User};
 use crate::provider::db::DbConnection;
 use crate::provider::user::{get_user_from_db_id, gmaps_user_id_to_db_id};
 use crate::schema::reviews;
+use crate::schema::seen_reviews;
 use crate::schema::users;
 use crate::utility::shorten::shorten_url;
 use diesel::prelude::*;
 use reqwest::Url;
+use sha2::{Digest, Sha256};
 
 pub fn get_latest_review_for_user_gmaps_id(gmaps_id: &str) -> Option<ReviewWithUser> {
     get_latest_review_for_user(gmaps_user_id_to_db_id(gmaps_id)?)
@@ -17,7 +19,22 @@ pub fn check_for_new_review(user: &User) -> Option<ReviewWithUser> {
         return None;
     }
 
+    // Make sure the review we currently hold is remembered, so a crawl that returns it
+    // (or any review we have already seen) is not mistaken for a new review.
+    remember_review(&old_review.review);
+
     let latest_review = fetch_latest_review(user)?;
+
+    // The crawler sometimes falls back to an older review (e.g. a page still loading). If we
+    // have seen this review before it is not new, so never report it as one.
+    if is_review_already_seen(user.id, &latest_review) {
+        tracing::info!(
+            user_id = user.id,
+            "Crawled review has already been seen before, likely an older review; skipping"
+        );
+        return None;
+    }
+
     if is_new_review_different(&old_review.review, &latest_review) {
         save_new_review(&latest_review)
     } else {
@@ -111,6 +128,14 @@ fn save_new_review(new_review: &NewReview) -> Option<ReviewWithUser> {
 
         diesel::insert_into(reviews::table)
             .values(&modified_review)
+            .execute(conn)?;
+
+        diesel::insert_into(seen_reviews::table)
+            .values(&NewSeenReview {
+                user_id: modified_review.user_id,
+                hash: new_review_hash(&modified_review),
+            })
+            .on_conflict_do_nothing()
             .execute(conn)?;
 
         let saved_review = reviews::table
@@ -221,6 +246,71 @@ fn extract_picture_count(pictures: &serde_json::Value) -> usize {
         .unwrap_or_default()
 }
 
+/// The review's stable textual content: the original text when Google shows a translation,
+/// otherwise the displayed text. Comparing this stays consistent whether or not a translation
+/// happens to be available on a given crawl.
+fn review_content_key(review: &Review) -> &str {
+    review.original_text.as_deref().unwrap_or(review.text.as_str())
+}
+
+fn new_review_content_key(review: &NewReview) -> &str {
+    review.original_text.as_deref().unwrap_or(review.text.as_str())
+}
+
+/// SHA-256 over the review's title (place name) and body (text). Stars and pictures are
+/// deliberately excluded: stars are not part of a review's identity here, and picture count can
+/// vary between crawls (lazy loading) — either would produce false "new" hashes.
+fn compute_review_hash(place_name: &str, content: &str) -> Vec<u8> {
+    let mut hasher = Sha256::new();
+    hasher.update(place_name.as_bytes());
+    hasher.update([0u8]);
+    hasher.update(content.as_bytes());
+    hasher.finalize().to_vec()
+}
+
+fn review_hash(review: &Review) -> Vec<u8> {
+    compute_review_hash(&review.place_name, review_content_key(review))
+}
+
+fn new_review_hash(review: &NewReview) -> Vec<u8> {
+    compute_review_hash(&review.place_name, new_review_content_key(review))
+}
+
+/// Records a review's hash so we can recognize it (and never report it as new) in the future.
+fn remember_review(review: &Review) {
+    let Some(mut conn) = get_connection() else { return };
+    let seen_review = NewSeenReview {
+        user_id: review.user_id,
+        hash: review_hash(review),
+    };
+    if let Err(e) = diesel::insert_into(seen_reviews::table)
+        .values(&seen_review)
+        .on_conflict_do_nothing()
+        .execute(&mut conn)
+    {
+        tracing::error!(
+            "Failed to record seen review hash for user {}: {}",
+            review.user_id,
+            e
+        );
+    }
+}
+
+fn is_review_already_seen(user_id: i32, review: &NewReview) -> bool {
+    let Some(mut conn) = get_connection() else { return false };
+    seen_reviews::table
+        .filter(seen_reviews::user_id.eq(user_id))
+        .filter(seen_reviews::hash.eq(new_review_hash(review)))
+        .select(seen_reviews::id)
+        .first::<i32>(&mut conn)
+        .optional()
+        .map(|found| found.is_some())
+        .unwrap_or_else(|e| {
+            tracing::error!("Failed to check seen review hash for user {}: {}", user_id, e);
+            false
+        })
+}
+
 async fn shorten_picture_urls_async(pictures: &serde_json::Value) -> serde_json::Value {
     match pictures.as_array() {
         Some(arr) => {
@@ -254,7 +344,10 @@ async fn shorten_picture_urls_async(pictures: &serde_json::Value) -> serde_json:
 
 #[cfg(test)]
 mod tests {
-    use super::{extract_picture_count, is_new_review_different, shorten_picture_urls_async};
+    use super::{
+        compute_review_hash, extract_picture_count, is_new_review_different, new_review_hash,
+        review_hash, shorten_picture_urls_async,
+    };
     use crate::models::{NewReview, Review};
     use chrono::Utc;
     use serde_json::json;
@@ -293,6 +386,49 @@ mod tests {
     fn extract_picture_count_counts_only_string_urls() {
         let pictures = json!(["a", 1, null, "b", { "x": true }]);
         assert_eq!(extract_picture_count(&pictures), 2);
+    }
+
+    #[test]
+    fn compute_review_hash_is_deterministic_and_sha256_sized() {
+        let a = compute_review_hash("Place", "text");
+        let b = compute_review_hash("Place", "text");
+        assert_eq!(a, b);
+        assert_eq!(a.len(), 32);
+    }
+
+    #[test]
+    fn compute_review_hash_differs_for_different_title_or_body() {
+        let base = compute_review_hash("Place", "text");
+        assert_ne!(base, compute_review_hash("Other Place", "text"));
+        assert_ne!(base, compute_review_hash("Place", "different"));
+    }
+
+    #[test]
+    fn review_hash_ignores_stars() {
+        let stored = review_with(json!([]), 5, Some("hola"));
+        let fetched = new_review_with(json!([]), 1, Some("hola"));
+
+        assert_eq!(review_hash(&stored), new_review_hash(&fetched));
+    }
+
+    #[test]
+    fn review_hash_ignores_whether_translation_was_shown() {
+        // Same review, once stored with an original text (translation shown)...
+        let stored = review_with(json!([]), 5, Some("hola"));
+        // ...and once crawled without one (no translation offered, text is the original).
+        let mut fetched = new_review_with(json!([]), 5, None);
+        fetched.text = "hola".to_string();
+
+        assert_eq!(review_hash(&stored), new_review_hash(&fetched));
+    }
+
+    #[test]
+    fn review_hash_differs_for_different_text() {
+        let stored = review_with(json!([]), 5, None);
+        let mut fetched = new_review_with(json!([]), 5, None);
+        fetched.text = "a different review".to_string();
+
+        assert_ne!(review_hash(&stored), new_review_hash(&fetched));
     }
 
     #[test]
