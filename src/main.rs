@@ -1,10 +1,22 @@
+// Tests may panic freely; the lints below keep the production paths panic-free.
+#![cfg_attr(
+    test,
+    allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::panic,
+        clippy::indexing_slicing
+    )
+)]
+
 extern crate core;
 
 use crate::background::worker;
 use crate::config::get_config;
 use crate::provider::db::DbProvider;
+use anyhow::Result;
 use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
-use poise::serenity_prelude::Client;
+use std::process::ExitCode;
 use tokio_cron_scheduler::{Job, JobScheduler};
 use tracing_subscriber::FmtSubscriber;
 
@@ -20,84 +32,87 @@ mod utility;
 pub const DIESEL_MIGRATIONS: EmbeddedMigrations = embed_migrations!();
 
 #[tokio::main]
-async fn main() {
-    load_env().await;
+async fn main() -> ExitCode {
+    let env_result = load_env();
+    init_tracing();
+    if let Err(e) = env_result {
+        tracing::warn!(error = %e, "Failed to load the .env file; relying on the process environment");
+    }
 
+    match run().await {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(e) => {
+            tracing::error!(error = %e, "Fatal error, shutting down");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+async fn run() -> Result<()> {
+    let missing = get_config().missing_required_values();
+    if !missing.is_empty() {
+        return Err(anyhow::anyhow!(
+            "Required environment variables are not set: {}",
+            missing.join(", ")
+        ));
+    }
+
+    init_db().await?;
+
+    tokio::task::spawn(async move {
+        if let Err(e) = schedule_review_checks().await {
+            tracing::error!(error = %e, "Review check scheduler stopped; no further checks will run");
+        }
+    });
+
+    let mut client = discord::builder::build(get_config().discord_token.clone()).await?;
+    client.start_autosharded().await?;
+
+    Ok(())
+}
+
+fn load_env() -> Result<(), dotenvy::Error> {
+    dotenvy::dotenv_override().map(|_| ())
+}
+
+fn init_tracing() {
     let subscriber = FmtSubscriber::builder()
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
         .finish();
-    tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
-    tracing_log::LogTracer::init().expect("failed to init logger");
-
-    init_db().await;
-
-    tokio::task::spawn(async move {
-        schedule_background_review_check().await;
-    });
-
-    let discord_client = discord::builder::build(config::get_config().discord_token.clone()).await;
-    match discord_client {
-        Ok(mut client) => {
-            run_discord_client(&mut client).await;
-        }
-        Err(e) => eprintln!("Failed to initialize Discord client: {}", e),
+    // Logging that is not available is not a reason to abort, but it must be said out loud.
+    if let Err(e) = tracing::subscriber::set_global_default(subscriber) {
+        eprintln!("Failed to set the tracing subscriber: {e}");
+    }
+    if let Err(e) = tracing_log::LogTracer::init() {
+        eprintln!("Failed to initialize the log tracer: {e}");
     }
 }
 
-async fn load_env() {
-    match dotenvy::dotenv_override() {
-        Ok(_) => (),
-        Err(e) => eprintln!("Failed to load .env file: {}", e),
-    }
-}
-
-async fn init_db() {
-    let mut conn = DbProvider::global()
-        .get_connection()
-        .expect("connect failed");
+async fn init_db() -> Result<()> {
+    let mut conn = DbProvider::global().get_connection()?;
 
     conn.run_pending_migrations(DIESEL_MIGRATIONS)
-        .expect("migration failed");
+        .map_err(|e| anyhow::anyhow!("Failed to run pending database migrations: {e}"))?;
+
+    Ok(())
 }
 
-async fn schedule_background_review_check() {
-    let scheduler = JobScheduler::new().await.unwrap();
+async fn schedule_review_checks() -> Result<()> {
+    let scheduler = JobScheduler::new().await?;
 
     if get_config().fetch_reviews_on_startup {
-        tokio::task::spawn(async move {
-            tracing::info!("Running startup review check...");
-            worker::check_for_new_reviews();
-            tracing::info!("Finished startup review check.");
-        })
-            .await
-            .expect("failed to run startup review check");
+        tracing::info!(trigger = "startup", "Triggering review check");
+        worker::check_for_new_reviews();
     }
 
-    let job = match Job::new(
-        get_config().new_review_fetch_interval.clone(),
-        |_uuid, _l| {
-            tracing::info!("Starting scheduled review fetch...");
-            worker::check_for_new_reviews();
-            tracing::info!("Finished scheduled review fetch.");
-        },
-    ) {
-        Ok(j) => j,
-        Err(e) => {
-            tracing::error!(
-                "Failed to create scheduled job with schedule '{}': '{}'",
-                get_config().new_review_fetch_interval.clone(),
-                e
-            );
-            return;
-        }
-    };
+    let interval = get_config().new_review_fetch_interval.clone();
+    let job = Job::new(interval, |_uuid, _l| {
+        tracing::info!(trigger = "schedule", "Triggering review check");
+        worker::check_for_new_reviews();
+    })?;
 
-    scheduler.add(job).await.unwrap();
-    scheduler.start().await.unwrap();
-}
+    scheduler.add(job).await?;
+    scheduler.start().await?;
 
-async fn run_discord_client(client: &mut Client) {
-    if let Err(e) = client.start_autosharded().await {
-        tracing::error!("Discord client error: {}", e);
-    }
+    Ok(())
 }

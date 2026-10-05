@@ -22,3 +22,14 @@ chrono = "0.4"
 serde_json = "1.0"
 reqwest = { version = "0.13", features = ["json"] }
 serde = { version = "1.0.228", features = ["derive"] }
+
+# The bot must never take the process (or a background task) down with a panic, so the
+# panic-capable constructs are rejected outright instead of being reviewed by hand.
+# Tests opt out crate-wide in `src/main.rs`.
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+indexing_slicing = "deny"
+todo = "deny"
+unimplemented = "deny"

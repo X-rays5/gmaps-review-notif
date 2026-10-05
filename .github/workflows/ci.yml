@@ -32,6 +32,9 @@ jobs:
     - name: Run unit tests
       run: cargo test --locked
 
+    - name: Run clippy
+      run: cargo clippy --locked --all-targets -- -D warnings
+
   build:
     needs: [diesel-migrations, rust-tests]
     runs-on: ubuntu-latest

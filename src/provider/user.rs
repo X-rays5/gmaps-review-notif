@@ -1,5 +1,5 @@
 use crate::models::{NewUser, User};
-use crate::provider::db::DbConnection;
+use crate::provider::db::get_connection;
 use crate::schema::users;
 use anyhow::{anyhow, Result};
 use diesel::prelude::*;
@@ -22,7 +22,7 @@ pub fn get_user_from_db_id(user_id: i32) -> Option<User> {
         .first::<User>(&mut conn)
         .optional()
         .unwrap_or_else(|e| {
-            tracing::error!("Database query error: {}", e);
+            tracing::error!(db_user_id = user_id, error = %e, "Failed to query user by db id");
             None
         })
 }
@@ -31,7 +31,7 @@ pub fn gmaps_user_id_to_db_id(gmaps_id: &str) -> Option<i32> {
     match get_user_from_gmaps_id(gmaps_id) {
         Ok(u) => Some(u.id),
         Err(e) => {
-            tracing::error!("Failed to get user from gmaps_id {}: {}", gmaps_id, e);
+            tracing::error!(gmaps_id = %gmaps_id, error = %e, "Failed to get user by gmaps_id");
             None
         }
     }
@@ -45,7 +45,7 @@ fn get_user_from_gmaps_id_db(gmaps_id: &str) -> Option<User> {
         .first::<User>(&mut conn)
         .optional()
         .unwrap_or_else(|e| {
-            tracing::error!("Database query error: {}", e);
+            tracing::error!(gmaps_id = %gmaps_id, error = %e, "Failed to query user by gmaps_id");
             None
         })
 }
@@ -54,7 +54,7 @@ fn fetch_and_save_user(gmaps_id: &str) -> Option<User> {
     let new_user = match crate::crawler::pages::user::get_user_from_id(gmaps_id) {
         Ok(u) => u,
         Err(e) => {
-            tracing::error!("Failed to fetch user from Google Maps: {}", e);
+            tracing::error!(gmaps_id = %gmaps_id, error = %e, "Failed to fetch user from Google Maps");
             return None;
         }
     };
@@ -69,19 +69,12 @@ fn save_new_user(new_user: &NewUser) -> Option<User> {
         .values(new_user)
         .get_result::<User>(&mut conn)
     {
-        Ok(saved_user) => Some(saved_user),
-        Err(e) => {
-            tracing::error!("Failed to save new user to database: {}", e);
-            None
+        Ok(saved_user) => {
+            tracing::info!(db_user_id = saved_user.id, gmaps_id = %saved_user.gmaps_id, name = %saved_user.name, "Saved new user");
+            Some(saved_user)
         }
-    }
-}
-
-fn get_connection() -> Option<DbConnection> {
-    match crate::provider::db::DbProvider::global().get_connection() {
-        Ok(c) => Some(c),
         Err(e) => {
-            tracing::error!("Failed to get DB connection: {}", e);
+            tracing::error!(gmaps_id = %new_user.gmaps_id, error = %e, "Failed to save new user to database");
             None
         }
     }

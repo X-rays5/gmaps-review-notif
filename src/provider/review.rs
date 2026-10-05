@@ -1,5 +1,5 @@
 use crate::models::{NewReview, NewSeenReview, Review, ReviewWithUser, User};
-use crate::provider::db::DbConnection;
+use crate::provider::db::get_connection;
 use crate::provider::user::{get_user_from_db_id, gmaps_user_id_to_db_id};
 use crate::schema::reviews;
 use crate::schema::seen_reviews;
@@ -14,8 +14,17 @@ pub fn get_latest_review_for_user_gmaps_id(gmaps_id: &str) -> Option<ReviewWithU
 }
 
 pub fn check_for_new_review(user: &User) -> Option<ReviewWithUser> {
-    let Some(old_review) = get_latest_review_from_db(user.id) else { return fetch_and_save_latest_review(user) };
+    let Some(old_review) = get_latest_review_from_db(user.id) else {
+        tracing::debug!(db_user_id = user.id, gmaps_id = %user.gmaps_id, "No stored review yet; fetching first review");
+        return fetch_and_save_latest_review(user);
+    };
     if !is_review_past_age_limit(&old_review.review) {
+        tracing::debug!(
+            db_user_id = user.id,
+            gmaps_id = %user.gmaps_id,
+            found_at = %old_review.review.found_at,
+            "Stored review is still fresh; skipping check"
+        );
         return None;
     }
 
@@ -29,29 +38,44 @@ pub fn check_for_new_review(user: &User) -> Option<ReviewWithUser> {
     // have seen this review before it is not new, so never report it as one.
     if is_review_already_seen(user.id, &latest_review) {
         tracing::info!(
-            user_id = user.id,
+            db_user_id = user.id,
+            gmaps_id = %user.gmaps_id,
+            place_name = %latest_review.place_name,
             "Crawled review has already been seen before, likely an older review; skipping"
         );
         return None;
     }
 
     if is_new_review_different(&old_review.review, &latest_review) {
+        tracing::info!(
+            db_user_id = user.id,
+            gmaps_id = %user.gmaps_id,
+            place_name = %latest_review.place_name,
+            stars = latest_review.stars,
+            "New review detected"
+        );
         save_new_review(&latest_review)
     } else {
+        tracing::debug!(
+            db_user_id = user.id,
+            gmaps_id = %user.gmaps_id,
+            "Crawled review is unchanged from the stored one; skipping"
+        );
         None
     }
 }
 
 pub fn get_latest_review_for_user(user_id: i32) -> Option<ReviewWithUser> {
     let latest_in_db = get_latest_review_from_db(user_id);
-    if let Some(latest) = latest_in_db.as_ref() {
-        if !is_review_past_age_limit(&latest.review) {
-            return latest_in_db;
-        }
+    if let Some(latest) = latest_in_db.as_ref()
+        && !is_review_past_age_limit(&latest.review)
+    {
+        tracing::debug!(db_user_id = user_id, review_id = latest.review.id, "Returning cached review (still fresh)");
+        return latest_in_db;
     }
 
     let Some(user) = get_user_from_db_id(user_id) else {
-        tracing::error!("Failed to get user from db: {}", user_id);
+        tracing::error!(db_user_id = user_id, "Failed to get user from db");
         return None;
     };
 
@@ -64,13 +88,19 @@ pub fn get_latest_review_for_user(user_id: i32) -> Option<ReviewWithUser> {
 fn get_latest_review_from_db(user_id: i32) -> Option<ReviewWithUser> {
     let mut conn = get_connection()?;
 
-    users::table
+    match users::table
         .inner_join(reviews::table)
         .filter(users::id.eq(user_id))
         .order(reviews::found_at.desc())
         .first::<(User, Review)>(&mut conn)
-        .map(|(user, review)| ReviewWithUser { user, review })
-        .ok()
+    {
+        Ok((user, review)) => Some(ReviewWithUser { user, review }),
+        Err(diesel::result::Error::NotFound) => None,
+        Err(e) => {
+            tracing::error!(db_user_id = user_id, error = %e, "Failed to load the latest review from the database");
+            None
+        }
+    }
 }
 
 fn fetch_and_save_latest_review(user: &User) -> Option<ReviewWithUser> {
@@ -82,7 +112,7 @@ fn fetch_latest_review(user: &User) -> Option<NewReview> {
     match crate::crawler::pages::review::get_latest_review_for_user(user) {
         Ok(r) => Some(r),
         Err(e) => {
-            tracing::error!("Failed to fetch latest review from Google Maps: {}", e);
+            tracing::error!(db_user_id = user.id, gmaps_id = %user.gmaps_id, error = %e, "Failed to fetch latest review from Google Maps");
             None
         }
     }
@@ -100,12 +130,12 @@ fn save_new_review(new_review: &NewReview) -> Option<ReviewWithUser> {
         }) {
             Ok(shortened) => shortened,
             Err(e) => {
-                tracing::warn!("Failed to shorten review URL: {}, using original URL", e);
+                tracing::warn!(db_user_id = new_review.user_id, error = %e, "Failed to shorten review URL, using original URL");
                 new_review.link_en.clone()
             }
         },
         Err(e) => {
-            tracing::warn!("Failed to parse review URL: {}, using original URL", e);
+            tracing::warn!(db_user_id = new_review.user_id, error = %e, "Failed to parse review URL, using original URL");
             new_review.link_en.clone()
         }
     };
@@ -152,19 +182,17 @@ fn save_new_review(new_review: &NewReview) -> Option<ReviewWithUser> {
             user,
         })
     }) {
-        Ok(result) => Some(result),
-        Err(e) => {
-            tracing::error!("Failed to save new review to database: {}", e);
-            None
+        Ok(result) => {
+            tracing::info!(
+                db_user_id = result.review.user_id,
+                review_id = result.review.id,
+                place_name = %result.review.place_name,
+                "Saved new review"
+            );
+            Some(result)
         }
-    }
-}
-
-fn get_connection() -> Option<DbConnection> {
-    match crate::provider::db::DbProvider::global().get_connection() {
-        Ok(c) => Some(c),
         Err(e) => {
-            tracing::error!("Failed to get database connection: {}", e);
+            tracing::error!(db_user_id = modified_review.user_id, error = %e, "Failed to save new review to database");
             None
         }
     }
@@ -192,7 +220,7 @@ fn is_new_review_different(current: &Review, new: &NewReview) -> bool {
         return false;
     }
 
-    if tracing::enabled!(tracing::Level::INFO) {
+    if tracing::enabled!(tracing::Level::DEBUG) {
         let mut changed_fields = Vec::new();
         if place_name_changed {
             changed_fields.push("place_name");
@@ -229,11 +257,11 @@ fn is_new_review_different(current: &Review, new: &NewReview) -> bool {
             ));
         }
 
-        tracing::info!(
-            user_id = new.user_id,
+        tracing::debug!(
+            db_user_id = new.user_id,
             changed_fields = ?changed_fields,
             changes = ?change_details,
-            "Detected new review differences"
+            "Detected review field differences"
         );
     }
     true
@@ -288,11 +316,7 @@ fn remember_review(review: &Review) {
         .on_conflict_do_nothing()
         .execute(&mut conn)
     {
-        tracing::error!(
-            "Failed to record seen review hash for user {}: {}",
-            review.user_id,
-            e
-        );
+        tracing::error!(db_user_id = review.user_id, error = %e, "Failed to record seen review hash");
     }
 }
 
@@ -306,7 +330,7 @@ fn is_review_already_seen(user_id: i32, review: &NewReview) -> bool {
         .optional()
         .map(|found| found.is_some())
         .unwrap_or_else(|e| {
-            tracing::error!("Failed to check seen review hash for user {}: {}", user_id, e);
+            tracing::error!(db_user_id = user_id, error = %e, "Failed to check seen review hash");
             false
         })
 }
@@ -323,12 +347,12 @@ async fn shorten_picture_urls_async(pictures: &serde_json::Value) -> serde_json:
                                 shortened_urls.push(serde_json::Value::String(shortened));
                             }
                             Err(e) => {
-                                tracing::warn!("Failed to shorten picture URL: {}, using original URL", e);
+                                tracing::warn!(error = %e, "Failed to shorten picture URL, using original URL");
                                 shortened_urls.push(serde_json::Value::String(url_str.to_string()));
                             }
                         },
                         Err(e) => {
-                            tracing::warn!("Failed to parse picture URL: {}, using original URL", e);
+                            tracing::warn!(error = %e, "Failed to parse picture URL, using original URL");
                             shortened_urls.push(serde_json::Value::String(url_str.to_string()));
                         }
                     }

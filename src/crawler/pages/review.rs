@@ -13,6 +13,8 @@ struct ReviewText {
 static GMAPS_REVIEW_URL: &str = "https://www.google.com/maps/contrib/{}/reviews?hl=en";
 
 pub fn get_latest_review_for_user(gmaps_user: &User) -> Result<NewReview> {
+    tracing::debug!(gmaps_id = %gmaps_user.gmaps_id, "Crawling latest review from Google Maps");
+
     let browser = browser::get(true)?;
     let tab = browser::new_tab(&browser)?;
 
@@ -36,6 +38,15 @@ pub fn get_latest_review_for_user(gmaps_user: &User) -> Result<NewReview> {
 
     let place_name = get_place_name(&tab, gmaps_user)?;
     tracing::debug!("Retrieved place name: {}", place_name);
+
+    tracing::debug!(
+        gmaps_id = %gmaps_user.gmaps_id,
+        place_name = %place_name,
+        stars = star_count,
+        text_length = review_text.len(),
+        picture_count = pictures.len(),
+        "Crawled review"
+    );
 
     Ok(NewReview {
         place_name,
@@ -154,7 +165,7 @@ fn retrieve_review_text(tab: &Tab) -> ReviewText {
             match button.click() {
                 Ok(_) => (),
                 Err(e) => {
-                    tracing::error!("Failed to click 'Show original' button: {}", e);
+                    tracing::warn!(error = %e, "Failed to click 'Show original' button; using translated text");
                     return ReviewText {
                         text: review_text,
                         original_text: None,
@@ -185,11 +196,11 @@ fn retrieve_star_count(tab: &Tab) -> Result<i32> {
             "Failed to find star rating elements for review"
         ));
     };
-    if stars_span.is_empty() {
+    let Some(first_star) = stars_span.first() else {
         return Err(anyhow::anyhow!("Failed to find star rating element"));
-    }
+    };
 
-    let Ok(Some(valid_star_classes)) = stars_span[0].get_attribute_value("class") else {
+    let Ok(Some(valid_star_classes)) = first_star.get_attribute_value("class") else {
         return Err(anyhow::anyhow!("Failed to get valid star class"));
     };
 
@@ -226,11 +237,11 @@ fn retrieve_pictures(tab: &Tab, depth: i32) -> Result<Vec<String>> {
     for picture_element in &picture_elements {
         let aria_label = match picture_element.get_attribute_value("aria-label") {
             Ok(aria_label) => if let Some(aria_label) = aria_label { aria_label } else {
-                tracing::error!("Picture element does not have an aria-label attribute");
+                tracing::warn!("Picture element does not have an aria-label attribute");
                 continue;
             },
             Err(err) => {
-                tracing::error!("Failed to get aria-label for picture element: {}", err);
+                tracing::warn!(error = %err, "Failed to get aria-label for picture element");
                 continue;
             }
         };
@@ -248,28 +259,26 @@ fn retrieve_pictures(tab: &Tab, depth: i32) -> Result<Vec<String>> {
     for picture_element in &picture_elements {
         let style = match picture_element.get_attribute_value("style") {
             Ok(style) => if let Some(s) = style { s } else {
-                tracing::error!("Picture element does not have a style attribute");
+                tracing::warn!("Picture element does not have a style attribute");
                 continue;
             },
             Err(err) => {
-                tracing::error!("Failed to get style attribute for picture element: {}", err);
+                tracing::warn!(error = %err, "Failed to get style attribute for picture element");
                 continue;
             }
         };
 
         if let Some(caps) = re.captures(&style) {
             if let Some(url) = caps.get(1) {
-                let clean_url = if let Some(idx) = url.as_str().rfind('=') {
-                    &url.as_str()[..idx] // Remove everything from '=' onwards
-                } else {
-                    url.as_str() // If no '=' is found, use the full URL
-                };
+                // Strip the size suffix from the last '=' onwards; keep the URL when there is none.
+                let url_str = url.as_str();
+                let clean_url = url_str.rsplit_once('=').map_or(url_str, |(base, _)| base);
                 pictures.push(clean_url.to_string());
             } else {
-                tracing::error!("Failed to extract URL from style attribute: {}", style);
+                tracing::warn!(style = %style, "Failed to extract URL from style attribute");
             }
         } else {
-            tracing::error!("Style attribute does not match expected format: {}", style);
+            tracing::warn!(style = %style, "Style attribute does not match expected format");
         }
     }
 
