@@ -127,6 +127,38 @@ pub fn wait_for_url_regex(
     Ok(())
 }
 
+/// Collects the elements matching `xpath`, waiting for at least one to appear.
+///
+/// `Tab::wait_for_elements_by_xpath` looks like it does this but does not: it waits for an error
+/// meaning "no such element", while the underlying query returns an empty list instead, so it
+/// returns immediately with whatever the page has rendered so far. Pages that fill in
+/// asynchronously need the wait to actually happen.
+pub fn wait_for_elements<'a>(
+    tab: &'a headless_chrome::Tab,
+    xpath: &str,
+    timeout_ms: u64,
+) -> Result<Vec<headless_chrome::Element<'a>>> {
+    tracing::debug!("Waiting for elements matching: {}", xpath);
+    let start = std::time::Instant::now();
+    loop {
+        match tab.find_elements_by_xpath(xpath) {
+            Ok(elements) if !elements.is_empty() => {
+                tracing::debug!("Found {} element(s) matching: {}", elements.len(), xpath);
+                return Ok(elements);
+            }
+            Ok(_) => (),
+            Err(e) => tracing::debug!(error = %e, "Failed to query elements, retrying"),
+        }
+
+        if start.elapsed().as_millis() > u128::from(timeout_ms) {
+            return Err(anyhow::anyhow!(
+                "Timeout waiting for elements matching: {xpath}"
+            ));
+        }
+        std::thread::sleep(Duration::from_millis(100));
+    }
+}
+
 pub fn wait_dom_ready(tab: &headless_chrome::Tab, timeout_ms: u64) -> Result<()> {
     tracing::debug!("Waiting for DOM ready");
     let start = std::time::Instant::now();
