@@ -35,6 +35,7 @@ The bot is configured via environment variables:
 | `FETCH_REVIEWS_ON_STARTUP` | No | `true` | Fetch reviews when bot starts |
 | `NEW_REVIEW_FETCH_INTERVAL` | No | `0 0 */6 * * *` | Cron schedule for review checks (every 6 hours) |
 | `REVIEW_AGE_LIMIT_HOURS` | No | `24` | Only notify about reviews newer than this |
+| `DEBUG_WEBHOOK_URL` | No | - | Discord webhook that receives a screenshot of every crawled review. Debug aid; leave unset to turn it off |
 | `RUST_LOG` | No | `info` | Logging level (error, warn, info, debug, trace) |
 
 Database URL format: `postgres://user:password@host:port/database`

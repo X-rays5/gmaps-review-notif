@@ -35,6 +35,8 @@ services:
       FETCH_REVIEWS_ON_STARTUP: true
       NEW_REVIEW_FETCH_INTERVAL: 0 0 */6 * * *
       REVIEW_AGE_LIMIT_HOURS: 24
+      # Screenshot of every crawled review is posted here. Debug aid; leave unset to turn it off.
+      # DEBUG_WEBHOOK_URL: https://discord.com/api/webhooks/...
       RUST_LOG: info
     restart: unless-stopped
 

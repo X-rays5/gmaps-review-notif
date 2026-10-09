@@ -20,7 +20,7 @@ tracing-log = "0.2"
 urlencoding = "2.1"
 chrono = "0.4"
 serde_json = "1.0"
-reqwest = { version = "0.13", features = ["json"] }
+reqwest = { version = "0.13", features = ["json", "multipart"] }
 serde = { version = "1.0.228", features = ["derive"] }
 
 # The bot must never take the process (or a background task) down with a panic, so the

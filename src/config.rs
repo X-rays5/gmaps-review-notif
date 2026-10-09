@@ -11,6 +11,9 @@ pub struct Config {
     pub discord_token: String,
     pub database_url: String,
     pub review_age_limit_hours: i64,
+    /// Discord webhook that receives a screenshot of every crawled review. Debug aid: set it to
+    /// the webhook you want the screenshots in, or leave the variable unset to turn it off.
+    pub debug_webhook_url: Option<String>,
 }
 
 static CONFIG: LazyLock<Config> = LazyLock::new(|| Config {
@@ -28,6 +31,10 @@ static CONFIG: LazyLock<Config> = LazyLock::new(|| Config {
         .and_then(|raw| raw.parse::<i64>().ok())
         .filter(|hours| (1..=MAX_REVIEW_AGE_LIMIT_HOURS).contains(hours))
         .unwrap_or(24),
+    debug_webhook_url: std::env::var("DEBUG_WEBHOOK_URL")
+        .ok()
+        .map(|url| url.trim().to_string())
+        .filter(|url| !url.is_empty()),
 });
 
 impl Config {
